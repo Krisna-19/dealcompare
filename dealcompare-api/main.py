@@ -95,3 +95,10 @@ def search(query: Optional[str] = Query(None)):
         "message": f"Found {len(results)} best deals",
         "results": results
     }
+
+import os
+import uvicorn
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
