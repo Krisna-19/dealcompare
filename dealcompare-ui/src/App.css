@@ -213,3 +213,23 @@ body {
   border: 1px solid #ccc;
   cursor: pointer;
 }
+.suggestions {
+  position: absolute;
+  background: white;
+  border: 1px solid #ddd;
+  width: 300px;
+  max-height: 200px;
+  overflow-y: auto;
+  border-radius: 6px;
+  margin-top: 4px;
+  z-index: 100;
+}
+
+.suggestion-item {
+  padding: 10px;
+  cursor: pointer;
+}
+
+.suggestion-item:hover {
+  background-color: #f2f2f2;
+}
