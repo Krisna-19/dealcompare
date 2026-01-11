@@ -175,6 +175,19 @@ def search(query: Optional[str] = Query(None)):
         "message": f"Found {len(results)} best deals",
         "results": results
     }
+@app.get("/suggest")
+def suggest(query: str):
+    q = normalize(query)
+
+    suggestions = []
+    for p in PRODUCTS:
+        name = normalize(p["name"])
+        if q in name:
+            suggestions.append(p["name"])
+
+    # remove duplicates + limit
+    return list(dict.fromkeys(suggestions))[:5]
+
 
 import os
 import uvicorn
