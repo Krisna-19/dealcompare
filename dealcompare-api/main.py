@@ -136,6 +136,11 @@ def root():
 def health():
     return {"status": "healthy"}
 
+import re
+
+def normalize(text: str):
+    return re.sub(r"[^a-z0-9]", "", text.lower())
+
 @app.get("/search")
 def search(query: Optional[str] = Query(None)):
     filtered = PRODUCTS
@@ -143,9 +148,9 @@ def search(query: Optional[str] = Query(None)):
         q = query.lower()
         filtered = [
             p for p in PRODUCTS
-            if q in p["name"].lower()
-            or q in p["brand"].lower()
-            or q in p["category"].lower()
+            if q in normalize(p["name"])
+            or q in normalize(p["brand"])
+            or q in normalize(p["category"])
         ]
 
     groups = {}
