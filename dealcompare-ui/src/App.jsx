@@ -2,26 +2,27 @@ import { useState, useEffect } from "react";
 import "./App.css";
 
 function App() {
-  const [suggestions, setSuggestions] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [sortOrder, setSortOrder] = useState("low");
 
-  // ✅ FETCH ONLY
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // 🔍 SEARCH API
   const searchDeals = async () => {
     if (!query) return;
 
     setLoading(true);
     setError("");
+    setShowSuggestions(false);
 
     try {
       const res = await fetch(
         `https://dealcompare-api.onrender.com/search?query=${encodeURIComponent(query)}`
-    );
-
+      );
 
       if (!res.ok) throw new Error("API error");
 
@@ -35,7 +36,28 @@ function App() {
     }
   };
 
-  // ✅ SORT WHEN sortOrder CHANGES
+  // 💡 AUTOSUGGEST INPUT HANDLER
+  const handleInput = async (value) => {
+    setQuery(value);
+
+    if (value.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `https://dealcompare-api.onrender.com/suggest?query=${encodeURIComponent(value)}`
+      );
+      const data = await res.json();
+      setSuggestions(data);
+      setShowSuggestions(true);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // 🔃 SORT WHEN sortOrder CHANGES
   useEffect(() => {
     if (results.length === 0) return;
 
@@ -43,20 +65,14 @@ function App() {
 
     if (sortOrder === "low") {
       sorted.sort((a, b) => {
-        const priceA = parseInt(
-          a.best_deal.price.replace("₹", "").replace(",", "")
-        );
-        const priceB = parseInt(
-          b.best_deal.price.replace("₹", "").replace(",", "")
-        );
+        const priceA = parseInt(a.best_deal.price.replace("₹", "").replace(",", ""));
+        const priceB = parseInt(b.best_deal.price.replace("₹", "").replace(",", ""));
         return priceA - priceB;
       });
     }
 
     if (sortOrder === "rating") {
-      sorted.sort(
-        (a, b) => b.best_deal.rating - a.best_deal.rating
-      );
+      sorted.sort((a, b) => b.best_deal.rating - a.best_deal.rating);
     }
 
     setResults(sorted);
@@ -67,30 +83,42 @@ function App() {
       <h1 className="title">DealCompare 🔍</h1>
       <p className="subtitle">Compare prices across Amazon & Flipkart</p>
 
+      {/* 🔎 SEARCH BOX */}
       <div className="search-box">
         <input
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              searchDeals();
-            }
-          }}
-          placeholder="Search product (eg: iphone)"
+          onChange={(e) => handleInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && searchDeals()}
+          placeholder="Search product (eg: tshirt)"
         />
 
         <button onClick={searchDeals} disabled={loading}>
           {loading ? "Searching..." : "Search"}
         </button>
 
+        {/* 🔽 AUTOSUGGEST DROPDOWN */}
+        {showSuggestions && suggestions.length > 0 && (
+          <div className="suggestions">
+            {suggestions.map((s, i) => (
+              <div
+                key={i}
+                className="suggestion-item"
+                onClick={() => {
+                  setQuery(s);
+                  searchDeals();
+                }}
+              >
+                🔍 {s}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
+      {/* 🔃 SORT */}
       <div className="sort-box">
         <label>Sort by:</label>
-        <select
-          value={sortOrder}
-          onChange={(e) => setSortOrder(e.target.value)}
-        >
+        <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)}>
           <option value="low">💰 Price: Low → High</option>
           <option value="rating">⭐ Rating: High → Low</option>
         </select>
@@ -99,24 +127,13 @@ function App() {
       {loading && <p className="info">Loading deals...</p>}
       {error && <p className="error">{error}</p>}
 
+      {/* 🧾 RESULTS */}
       <div className="results">
         {results.map((item, i) => (
           <div className="card" key={i}>
             <div className="card-header">
               <h3>{item.product_name}</h3>
-              <div className="badges">
-                <span className="badge best">BEST DEAL</span>
-
-                {item.other_offers.every(
-                  o =>
-                    parseInt(item.best_deal.price.replace("₹", "").replace(",", "")) <=
-                    parseInt(o.price.replace("₹", "").replace(",", ""))
-                ) && <span className="badge price">BEST PRICE</span>}
-
-                {item.other_offers.every(
-                  o => item.best_deal.rating >= o.rating
-                ) && <span className="badge rating">BEST RATED</span>}
-              </div>
+              <span className="badge best">BEST DEAL</span>
             </div>
 
             <p><b>Brand:</b> {item.brand}</p>
@@ -137,17 +154,6 @@ function App() {
                 View Product →
               </a>
             </div>
-
-            {item.other_offers.length > 0 && (
-              <div className="others">
-                <h4>Other Offers</h4>
-                {item.other_offers.map((o, j) => (
-                  <p key={j} className="platform small">
-                    {o.platform === "Amazon" ? "🟧 Amazon" : "🟦 Flipkart"} — {o.price}
-                  </p>
-                ))}
-              </div>
-            )}
           </div>
         ))}
       </div>
