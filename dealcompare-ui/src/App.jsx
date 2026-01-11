@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import "./App.css";
 
 function App() {
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
