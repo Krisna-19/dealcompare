@@ -28,32 +28,29 @@ def normalize(text: str) -> str:
 # ---------------- SEARCH API ----------------
 @app.get("/search")
 def search(query: Optional[str] = Query(None)):
-    if not query:
-        return {"results": []}
+    filtered = PRODUCTS
 
-    normalized_query = normalize(query)
+    if query:
+        q = normalize(query)   # ✅ FIX: normalize query too
 
-    matched_products = []
-    for p in PRODUCTS:
-        searchable_text = normalize(
-            f"{p['name']} {p['brand']} {p['category']}"
-        )
+        filtered = [
+            p for p in PRODUCTS
+            if q in normalize(p["name"])
+            or q in normalize(p["brand"])
+            or q in normalize(p["category"])
+        ]
 
-        if normalized_query in searchable_text:
-            matched_products.append(p)
-
-    # ---- Group same products (name + brand) ----
     groups = {}
-    for p in matched_products:
+    for p in filtered:
         key = (p["name"], p["brand"])
         groups.setdefault(key, []).append(p)
 
     results = []
     for (name, brand), offers in groups.items():
-        def price_val(x):
-            return int(x["price"].replace("₹", "").replace(",", ""))
+        def price(p): 
+            return int(p["price"].replace("₹", "").replace(",", ""))
 
-        best = min(offers, key=price_val)
+        best = min(offers, key=price)
         others = [o for o in offers if o != best]
 
         results.append({
@@ -67,6 +64,7 @@ def search(query: Optional[str] = Query(None)):
         "message": f"Found {len(results)} best deals",
         "results": results
     }
+
 
 
 # ---------------- SUGGEST API ----------------
