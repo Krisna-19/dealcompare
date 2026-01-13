@@ -1,13 +1,15 @@
 import re
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI, Query
-from typing import Optional
 import os
+from typing import Optional
+
+from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
+# ---------------- APP ----------------
 app = FastAPI(title="DealCompare API")
 
-# ✅ SINGLE CORS middleware (keep only one)
+# ---------------- CORS ----------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # restrict later
@@ -16,22 +18,120 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---------------- NORMALIZE FUNCTION ----------------
+# ---------------- DATA ----------------
+PRODUCTS = [
+    # ---------- iPhone ----------
+    {
+        "id": 1,
+        "name": "Apple iPhone 15 (128GB, Blue)",
+        "brand": "Apple",
+        "category": "Electronics",
+        "price": "₹65,999",
+        "platform": "Amazon",
+        "rating": 4.8,
+        "delivery_days": 1,
+        "product_url": "https://amazon.in/iphone15"
+    },
+    {
+        "id": 2,
+        "name": "Apple iPhone 15 (128GB, Blue)",
+        "brand": "Apple",
+        "category": "Electronics",
+        "price": "₹64,900",
+        "platform": "Flipkart",
+        "rating": 4.7,
+        "delivery_days": 4,
+        "product_url": "https://flipkart.com/iphone15"
+    },
+
+    # ---------- Headphones ----------
+    {
+        "id": 3,
+        "name": "Sony WH-1000XM5 Headphones",
+        "brand": "Sony",
+        "category": "Electronics",
+        "price": "₹26,990",
+        "platform": "Amazon",
+        "rating": 4.7,
+        "delivery_days": 2,
+        "product_url": "https://amazon.in/sony-xm5"
+    },
+    {
+        "id": 4,
+        "name": "Sony WH-1000XM5 Headphones",
+        "brand": "Sony",
+        "category": "Electronics",
+        "price": "₹27,499",
+        "platform": "Flipkart",
+        "rating": 4.6,
+        "delivery_days": 3,
+        "product_url": "https://flipkart.com/sony-xm5"
+    },
+
+    # ---------- T-Shirts ----------
+    {
+        "id": 5,
+        "name": "Levi's Men's Printed T-Shirt",
+        "brand": "Levi's",
+        "category": "Fashion",
+        "price": "₹899",
+        "platform": "Myntra",
+        "rating": 4.3,
+        "delivery_days": 3,
+        "product_url": "https://myntra.com/levis-tshirt"
+    },
+    {
+        "id": 6,
+        "name": "Levi's Men's Printed T-Shirt",
+        "brand": "Levi's",
+        "category": "Fashion",
+        "price": "₹949",
+        "platform": "Ajio",
+        "rating": 4.2,
+        "delivery_days": 4,
+        "product_url": "https://ajio.com/levis-tshirt"
+    },
+
+    # ---------- Shoes ----------
+    {
+        "id": 7,
+        "name": "Nike Air Max Running Shoes",
+        "brand": "Nike",
+        "category": "Fashion",
+        "price": "₹7,999",
+        "platform": "Amazon",
+        "rating": 4.6,
+        "delivery_days": 2,
+        "product_url": "https://amazon.in/nike-airmax"
+    },
+    {
+        "id": 8,
+        "name": "Nike Air Max Running Shoes",
+        "brand": "Nike",
+        "category": "Fashion",
+        "price": "₹7,699",
+        "platform": "Myntra",
+        "rating": 4.7,
+        "delivery_days": 3,
+        "product_url": "https://myntra.com/nike-airmax"
+    }
+]
+
+# ---------------- NORMALIZE ----------------
 def normalize(text: str) -> str:
     if not text:
         return ""
     text = text.lower()
-    text = re.sub(r'[^a-z0-9]', '', text)  # remove spaces, hyphens, symbols
-    return text
+    return re.sub(r"[^a-z0-9]", "", text)  # removes spaces, hyphens etc.
 
 
-# ---------------- SEARCH API ----------------
+# ---------------- SEARCH ----------------
 @app.get("/search")
 def search(query: Optional[str] = Query(None)):
     filtered = PRODUCTS
 
     if query:
-        q = normalize(query)   # ✅ FIX: normalize query too
+        q = normalize(query)
 
         filtered = [
             p for p in PRODUCTS
@@ -47,7 +147,7 @@ def search(query: Optional[str] = Query(None)):
 
     results = []
     for (name, brand), offers in groups.items():
-        def price(p): 
+        def price(p):
             return int(p["price"].replace("₹", "").replace(",", ""))
 
         best = min(offers, key=price)
@@ -66,8 +166,7 @@ def search(query: Optional[str] = Query(None)):
     }
 
 
-
-# ---------------- SUGGEST API ----------------
+# ---------------- SUGGEST ----------------
 @app.get("/suggest")
 def suggest(query: str):
     q = normalize(query)
@@ -80,7 +179,7 @@ def suggest(query: str):
     return list(dict.fromkeys(suggestions))[:5]
 
 
-# ---------------- ROOT ----------------
+# ---------------- HEALTH ----------------
 @app.get("/")
 def root():
     return {"status": "DealCompare API running"}
