@@ -142,7 +142,7 @@ function App() {
 
       {/* 🔃 SORT */}
       <div className="sort-box">
-        <label>Sort by:</label>
+        <label>Sort by (default: Smart Score):</label>
         <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)}>
           <option value="low">💰 Price: Low → High</option>
           <option value="rating">⭐ Rating: High → Low</option>
