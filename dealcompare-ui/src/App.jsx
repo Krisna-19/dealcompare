@@ -89,35 +89,40 @@ function App() {
 
       {/* 🔎 SEARCH BOX */}
       <div className="search-box">
-        <input
-          value={query}
-          onChange={(e) => handleInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && searchDeals()}
-          placeholder="Search product (eg: tshirt)"
-        />
+  <input
+    value={query}
+    onChange={(e) => handleInput(e.target.value)}
+    onKeyDown={(e) => {
+      if (e.key === "Enter") {
+        setShowSuggestions(false);
+        searchDeals();
+      }
+    }}
+    placeholder="Search product (eg: tshirt)"
+  />
 
-        <button onClick={searchDeals} disabled={loading}>
-          {loading ? "Searching..." : "Search"}
-        </button>
+  <button onClick={searchDeals} disabled={loading}>
+    {loading ? "Searching..." : "Search"}
+  </button>
 
-        {/* 🔽 AUTOSUGGEST DROPDOWN */}
-        {showSuggestions && suggestions.length > 0 && (
-          <div className="suggestions">
-            {suggestions.map((s, i) => (
-              <div
-                key={i}
-                className="suggestion-item"
-                onClick={() => {
-                  setQuery(s);
-                  searchDeals();
-                }}
-              >
-                🔍 {s}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+  {showSuggestions && suggestions.length > 0 && (
+    <ul className="suggestions">
+      {suggestions.map((s, i) => (
+        <li
+          key={i}
+          onClick={() => {
+            setQuery(s);
+            setShowSuggestions(false);
+            searchDeals();
+          }}
+        >
+          {s}
+        </li>
+      ))}
+    </ul>
+  )}
+</div>
+
 
       {/* 🔃 SORT */}
       <div className="sort-box">
