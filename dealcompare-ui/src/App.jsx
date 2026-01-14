@@ -69,24 +69,29 @@ function App() {
 
   // 🔃 SORT WHEN sortOrder CHANGES
   useEffect(() => {
-    if (results.length === 0) return;
+  if (results.length === 0) return;
 
-    const sorted = [...results];
+  const sorted = [...results];
 
-    if (sortOrder === "low") {
-      sorted.sort((a, b) => {
-        const priceA = parseInt(a.best_deal.price.replace("₹", "").replace(",", ""));
-        const priceB = parseInt(b.best_deal.price.replace("₹", "").replace(",", ""));
-        return priceA - priceB;
-      });
-    }
+  if (sortOrder === "low") {
+    sorted.sort((a, b) => {
+      const priceA = parseInt(a.best_deal.price.replace("₹", "").replace(",", ""));
+      const priceB = parseInt(b.best_deal.price.replace("₹", "").replace(",", ""));
+      return priceA - priceB;
+    });
+  }
 
-    if (sortOrder === "rating") {
-      sorted.sort((a, b) => b.best_deal.rating - a.best_deal.rating);
-    }
+  if (sortOrder === "rating") {
+    sorted.sort((a, b) => b.best_deal.rating - a.best_deal.rating);
+  }
 
-    setResults(sorted);
-  }, [sortOrder]);
+  if (sortOrder === "score") {
+    sorted.sort((a, b) => b.best_deal.score - a.best_deal.score);
+  }
+
+  setResults(sorted);
+}, [sortOrder]);
+
 
   return (
     <div className="container">
@@ -136,6 +141,7 @@ function App() {
         <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)}>
           <option value="low">💰 Price: Low → High</option>
           <option value="rating">⭐ Rating: High → Low</option>
+          <option value="score">🧠 Smart Score</option> 
         </select>
       </div>
 
