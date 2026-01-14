@@ -160,11 +160,11 @@ function App() {
                 <b>Rating:</b> ⭐ {item.best_deal.rating}
               </p>
           {/* ✅ SMART SCORE BADGE */}
-          {item.best_deal.score && (
-            <div className="score-badge">
-            🏆 Smart Score: {item.best_deal.score}
+          {item.best_deal.score !== undefined && (
+            <div className={`score-badge ${getScoreClass(item.best_deal.score)}`}>
+              🏆 Smart Score: {item.best_deal.score.toFixed(2)}
             </div>
-        )}
+  )}
 
         <a
           href={item.best_deal.product_url}
