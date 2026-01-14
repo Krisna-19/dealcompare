@@ -1,6 +1,12 @@
 import { useState, useEffect } from "react";
 import "./App.css";
 
+const getScoreClass = (score) => {
+  if (score >= 0.8) return "score-green";
+  if (score >= 0.6) return "score-yellow";
+  return "score-red";
+};
+
 function App() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
