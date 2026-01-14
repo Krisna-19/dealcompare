@@ -39,24 +39,27 @@ function App() {
 
   // 💡 AUTOSUGGEST INPUT HANDLER
   const handleInput = async (value) => {
-    setQuery(value);
+  setQuery(value);
 
-    if (value.length < 2) {
-      setSuggestions([]);
-      return;
-    }
+  if (value.length < 2) {
+    setSuggestions([]);
+    setShowSuggestions(false);
+    return;
+  }
 
-    try {
-      const res = await fetch(
-        `http://127.0.0.1:8000/search?query=${encodeURIComponent(query)}`
-      );
-      const data = await res.json();
-      setSuggestions(data);
-      setShowSuggestions(true);
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  try {
+    const res = await fetch(
+      `http://127.0.0.1:8000/suggest?query=${encodeURIComponent(value)}`
+    );
+    const data = await res.json();
+
+    setSuggestions(data);
+    setShowSuggestions(true);
+  } catch (err) {
+    console.error("Suggestion fetch failed", err);
+  }
+};
+
 
   // 🔃 SORT WHEN sortOrder CHANGES
   useEffect(() => {
