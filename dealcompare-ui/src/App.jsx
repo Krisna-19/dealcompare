@@ -148,21 +148,28 @@ function App() {
             <p><b>Brand:</b> {item.brand}</p>
 
             <div className="best-deal">
-              <p>
+          <p>
                 <b>Price:</b> {item.best_deal.price}<br />
                 <b>Platform:</b> {item.best_deal.platform}<br />
                 <b>Rating:</b> ⭐ {item.best_deal.rating}
               </p>
-
-              <a
-                href={item.best_deal.product_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="link"
-              >
-                View Product →
-              </a>
+          {/* ✅ SMART SCORE BADGE */}
+          {item.best_deal.score && (
+            <div className="score-badge">
+            🏆 Smart Score: {item.best_deal.score}
             </div>
+        )}
+
+        <a
+          href={item.best_deal.product_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="link"
+        >
+          View Product →
+        </a>
+      </div>
+
           </div>
         ))}
       </div>
