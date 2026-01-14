@@ -7,7 +7,7 @@ from typing import Optional
 
 app = FastAPI(title="DealCompare API")
 
-# ---------------- CORS ----------------
+# ---------- CORS ----------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,7 +16,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---------------- DATA ----------------
+# ---------- DATA ----------
 PRODUCTS = [
     {
         "id": 5,
@@ -42,17 +42,24 @@ PRODUCTS = [
     }
 ]
 
-# ---------------- HELPERS ----------------
+# ---------- HELPERS ----------
 def normalize(text: str) -> str:
     if not text:
         return ""
-    text = text.lower()
-    return re.sub(r"[^a-z0-9]", "", text)
+    return re.sub(r"[^a-z0-9]", "", text.lower())
 
-def price_to_int(price: str) -> int:
-    return int(price.replace("₹", "").replace(",", ""))
+def price_value(p):
+    return int(p["price"].replace("₹", "").replace(",", ""))
 
-# ---------------- SEARCH ----------------
+# ---------- ROUTES ----------
+@app.get("/")
+def root():
+    return {"status": "DealCompare API running"}
+
+@app.get("/health")
+def health():
+    return {"status": "healthy"}
+
 @app.get("/search")
 def search(query: Optional[str] = Query(None)):
     if not query:
@@ -67,72 +74,43 @@ def search(query: Optional[str] = Query(None)):
         or q in normalize(p["category"])
     ]
 
-    # Group by product
-    groups = {}
+    if not filtered:
+        return {"message": "Found 0 best deals", "results": []}
+
+    min_price = min(price_value(p) for p in filtered)
+
+    # ✅ CALCULATE SCORE
     for p in filtered:
-        key = (p["name"], p["brand"])
-        groups.setdefault(key, []).append(p)
+        rating_score = (p["rating"] / 5) * 0.6
+        price_score = (min_price / price_value(p)) * 0.4
+        p["score"] = round(rating_score + price_score, 3)
 
-    results = []
-
-    for (name, brand), offers in groups.items():
-        prices = [price_to_int(o["price"]) for o in offers]
-        ratings = [o["rating"] for o in offers]
-
-        min_price = min(prices)
-        max_price = max(prices)
-        min_rating = min(ratings)
-        max_rating = max(ratings)
-
-        # Score calculation
-        for o in offers:
-            price = price_to_int(o["price"])
-            rating = o["rating"]
-
-            price_score = (
-                1 if max_price == min_price
-                else (max_price - price) / (max_price - min_price)
-            )
-
-            rating_score = (
-                1 if max_rating == min_rating
-                else (rating - min_rating) / (max_rating - min_rating)
-            )
-
-            o["score"] = round((price_score * 0.7) + (rating_score * 0.3), 3)
-
-        # Best deal = highest score
-        offers_sorted = sorted(offers, key=lambda x: x["score"], reverse=True)
-        best = offers_sorted[0]
-        others = offers_sorted[1:]
-
-        results.append({
-            "product_name": name,
-            "brand": brand,
-            "best_deal": {
-                **best,
-                "score": best["score"]
-            },
-            "other_offers": [
-                {**o, "score": o["score"]} for o in others
-            ]
-        })
+    # ✅ BEST DEAL = highest score
+    best = max(filtered, key=lambda x: x["score"])
+    others = [p for p in filtered if p != best]
 
     return {
-        "message": f"Found {len(results)} best deals",
-        "results": results
+        "message": f"Found 1 best deals",
+        "results": [{
+            "product_name": best["name"],
+            "brand": best["brand"],
+            "best_deal": best,
+            "other_offers": others
+        }]
     }
 
-# ---------------- ROOT ----------------
-@app.get("/")
-def root():
-    return {"status": "DealCompare API running"}
+@app.get("/suggest")
+def suggest(query: str):
+    q = normalize(query)
+    suggestions = []
 
-@app.get("/health")
-def health():
-    return {"status": "healthy"}
+    for p in PRODUCTS:
+        if q in normalize(p["name"]):
+            suggestions.append(p["name"])
 
-# ---------------- RUN ----------------
+    return list(dict.fromkeys(suggestions))[:5]
+
+# ---------- RUN ----------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
