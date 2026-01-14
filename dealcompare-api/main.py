@@ -80,10 +80,24 @@ def search(query: Optional[str] = Query(None)):
     min_price = min(price_value(p) for p in filtered)
 
     # ✅ CALCULATE SCORE
+    # Find min delivery days
+    min_delivery = min(p["delivery_days"] for p in filtered)
+
     for p in filtered:
-        rating_score = (p["rating"] / 5) * 0.6
+        # Normalize rating (0–1)
+        rating_score = (p["rating"] / 5) * 0.4
+
+        # Normalize price (lower is better)
         price_score = (min_price / price_value(p)) * 0.4
-        p["score"] = round(rating_score + price_score, 3)
+
+        # Normalize delivery (faster is better)
+        delivery_score = (min_delivery / p["delivery_days"]) * 0.2
+
+        # Final Smart Score
+        p["score"] = round(
+            rating_score + price_score + delivery_score,
+            3
+        )
 
     # ✅ BEST DEAL = highest score
     best = max(filtered, key=lambda x: x["score"])
