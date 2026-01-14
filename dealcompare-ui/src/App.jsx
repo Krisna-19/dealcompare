@@ -164,6 +164,9 @@ function App() {
                 <b>Price:</b> {item.best_deal.price}<br />
                 <b>Platform:</b> {item.best_deal.platform}<br />
                 <b>Rating:</b> ⭐ {item.best_deal.rating}
+                <span className={`score-badge ${getScoreClass(item.best_deal.score)}`}>
+                      🧠 Score: {item.best_deal.score.toFixed(2)}
+                </span>
               </p>
           {/* ✅ SMART SCORE BADGE */}
           {item.best_deal.score !== undefined && (
