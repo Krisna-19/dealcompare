@@ -21,8 +21,9 @@ function App() {
 
     try {
       const res = await fetch(
-        `https://dealcompare-api.onrender.com/search?query=${encodeURIComponent(query)}`
-      );
+        `http://127.0.0.1:8000/search?query=${encodeURIComponent(query)}`
+    );
+
 
       if (!res.ok) throw new Error("API error");
 
@@ -47,7 +48,7 @@ function App() {
 
     try {
       const res = await fetch(
-        `https://dealcompare-api.onrender.com/suggest?query=${encodeURIComponent(value)}`
+        `http://127.0.0.1:8000/search?query=${encodeURIComponent(query)}`
       );
       const data = await res.json();
       setSuggestions(data);
