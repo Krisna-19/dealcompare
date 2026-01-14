@@ -164,8 +164,17 @@ function App() {
                 <b>Price:</b> {item.best_deal.price}<br />
                 <b>Platform:</b> {item.best_deal.platform}<br />
                 <b>Rating:</b> ⭐ {item.best_deal.rating}
-                <span className={`score-badge ${getScoreClass(item.best_deal.score)}`}>
-                      🧠 Score: {item.best_deal.score.toFixed(2)}
+                <span
+                  className={`score-badge tooltip ${getScoreClass(item.best_deal.score)}`}
+                >
+                  🧠 Score: {item.best_deal.score.toFixed(2)}
+
+                  <span className="tooltip-text">
+                    Smart Score combines<br />
+                    💰 Price (40%)<br />
+                    ⭐ Rating (60%)<br />
+                    Higher score = better deal
+                  </span>
                 </span>
               </p>
           {/* ✅ SMART SCORE BADGE */}
