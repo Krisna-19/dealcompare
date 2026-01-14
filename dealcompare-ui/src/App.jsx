@@ -172,7 +172,8 @@ function App() {
                   <span className="tooltip-text">
                     Smart Score combines<br />
                     💰 Price (40%)<br />
-                    ⭐ Rating (60%)<br />
+                    ⭐ Rating (40%)<br />
+                    🚚 Delivery speed (20%)<br />
                     Higher score = better deal
                   </span>
                 </span>
