@@ -319,4 +319,25 @@ body {
 .score-red {
   background: linear-gradient(135deg, #dc2626, #ef4444);
 }
+.score-badge {
+  margin-left: 8px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+}
 
+.score-green {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.score-yellow {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.score-red {
+  background: #fee2e2;
+  color: #991b1b;
+}
