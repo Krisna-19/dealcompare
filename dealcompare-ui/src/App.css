@@ -293,4 +293,30 @@ body {
   font-weight: bold;
   box-shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
+.score-badge {
+  margin-top: 8px;
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  color: white;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+/* 🟢 Excellent */
+.score-green {
+  background: linear-gradient(135deg, #16a34a, #22c55e);
+}
+
+/* 🟡 Good */
+.score-yellow {
+  background: linear-gradient(135deg, #facc15, #eab308);
+  color: #1f2937;
+}
+
+/* 🔴 Average */
+.score-red {
+  background: linear-gradient(135deg, #dc2626, #ef4444);
+}
 
