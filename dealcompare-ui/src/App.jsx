@@ -12,7 +12,7 @@ function App() {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [sortOrder, setSortOrder] = useState("low");
+  const [sortOrder, setSortOrder] = useState("score");
 
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -34,7 +34,12 @@ function App() {
       if (!res.ok) throw new Error("API error");
 
       const data = await res.json();
-      setResults(data.results || []);
+
+      const sortedByScore = [...(data.results || [])].sort(
+        (a, b) => b.best_deal.score - a.best_deal.score
+      );
+
+      setResults(sortedByScore);
     } catch (err) {
       setError("Failed to fetch deals");
       console.error(err);
