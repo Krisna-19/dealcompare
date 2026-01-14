@@ -1,18 +1,16 @@
 import re
 import os
-from typing import Optional
-
+import uvicorn
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
+from typing import Optional
 
-# ---------------- APP ----------------
 app = FastAPI(title="DealCompare API")
 
 # ---------------- CORS ----------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # restrict later
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -20,55 +18,6 @@ app.add_middleware(
 
 # ---------------- DATA ----------------
 PRODUCTS = [
-    # ---------- iPhone ----------
-    {
-        "id": 1,
-        "name": "Apple iPhone 15 (128GB, Blue)",
-        "brand": "Apple",
-        "category": "Electronics",
-        "price": "₹65,999",
-        "platform": "Amazon",
-        "rating": 4.8,
-        "delivery_days": 1,
-        "product_url": "https://amazon.in/iphone15"
-    },
-    {
-        "id": 2,
-        "name": "Apple iPhone 15 (128GB, Blue)",
-        "brand": "Apple",
-        "category": "Electronics",
-        "price": "₹64,900",
-        "platform": "Flipkart",
-        "rating": 4.7,
-        "delivery_days": 4,
-        "product_url": "https://flipkart.com/iphone15"
-    },
-
-    # ---------- Headphones ----------
-    {
-        "id": 3,
-        "name": "Sony WH-1000XM5 Headphones",
-        "brand": "Sony",
-        "category": "Electronics",
-        "price": "₹26,990",
-        "platform": "Amazon",
-        "rating": 4.7,
-        "delivery_days": 2,
-        "product_url": "https://amazon.in/sony-xm5"
-    },
-    {
-        "id": 4,
-        "name": "Sony WH-1000XM5 Headphones",
-        "brand": "Sony",
-        "category": "Electronics",
-        "price": "₹27,499",
-        "platform": "Flipkart",
-        "rating": 4.6,
-        "delivery_days": 3,
-        "product_url": "https://flipkart.com/sony-xm5"
-    },
-
-    # ---------- T-Shirts ----------
     {
         "id": 5,
         "name": "Levi's Men's Printed T-Shirt",
@@ -90,68 +39,72 @@ PRODUCTS = [
         "rating": 4.2,
         "delivery_days": 4,
         "product_url": "https://ajio.com/levis-tshirt"
-    },
-
-    # ---------- Shoes ----------
-    {
-        "id": 7,
-        "name": "Nike Air Max Running Shoes",
-        "brand": "Nike",
-        "category": "Fashion",
-        "price": "₹7,999",
-        "platform": "Amazon",
-        "rating": 4.6,
-        "delivery_days": 2,
-        "product_url": "https://amazon.in/nike-airmax"
-    },
-    {
-        "id": 8,
-        "name": "Nike Air Max Running Shoes",
-        "brand": "Nike",
-        "category": "Fashion",
-        "price": "₹7,699",
-        "platform": "Myntra",
-        "rating": 4.7,
-        "delivery_days": 3,
-        "product_url": "https://myntra.com/nike-airmax"
     }
 ]
 
-# ---------------- NORMALIZE ----------------
+# ---------------- HELPERS ----------------
 def normalize(text: str) -> str:
     if not text:
         return ""
     text = text.lower()
-    return re.sub(r"[^a-z0-9]", "", text)  # removes spaces, hyphens etc.
+    return re.sub(r"[^a-z0-9]", "", text)
 
+def price_to_int(price: str) -> int:
+    return int(price.replace("₹", "").replace(",", ""))
 
 # ---------------- SEARCH ----------------
 @app.get("/search")
 def search(query: Optional[str] = Query(None)):
-    filtered = PRODUCTS
+    if not query:
+        return {"message": "No query", "results": []}
 
-    if query:
-        q = normalize(query)
+    q = normalize(query)
 
-        filtered = [
-            p for p in PRODUCTS
-            if q in normalize(p["name"])
-            or q in normalize(p["brand"])
-            or q in normalize(p["category"])
-        ]
+    filtered = [
+        p for p in PRODUCTS
+        if q in normalize(p["name"])
+        or q in normalize(p["brand"])
+        or q in normalize(p["category"])
+    ]
 
+    # Group by product
     groups = {}
     for p in filtered:
         key = (p["name"], p["brand"])
         groups.setdefault(key, []).append(p)
 
     results = []
-    for (name, brand), offers in groups.items():
-        def price(p):
-            return int(p["price"].replace("₹", "").replace(",", ""))
 
-        best = min(offers, key=price)
-        others = [o for o in offers if o != best]
+    for (name, brand), offers in groups.items():
+        prices = [price_to_int(o["price"]) for o in offers]
+        ratings = [o["rating"] for o in offers]
+
+        min_price = min(prices)
+        max_price = max(prices)
+        min_rating = min(ratings)
+        max_rating = max(ratings)
+
+        # Score calculation
+        for o in offers:
+            price = price_to_int(o["price"])
+            rating = o["rating"]
+
+            price_score = (
+                1 if max_price == min_price
+                else (max_price - price) / (max_price - min_price)
+            )
+
+            rating_score = (
+                1 if max_rating == min_rating
+                else (rating - min_rating) / (max_rating - min_rating)
+            )
+
+            o["score"] = round((price_score * 0.7) + (rating_score * 0.3), 3)
+
+        # Best deal = highest score
+        offers_sorted = sorted(offers, key=lambda x: x["score"], reverse=True)
+        best = offers_sorted[0]
+        others = offers_sorted[1:]
 
         results.append({
             "product_name": name,
@@ -165,21 +118,7 @@ def search(query: Optional[str] = Query(None)):
         "results": results
     }
 
-
-# ---------------- SUGGEST ----------------
-@app.get("/suggest")
-def suggest(query: str):
-    q = normalize(query)
-    suggestions = []
-
-    for p in PRODUCTS:
-        if q in normalize(p["name"]):
-            suggestions.append(p["name"])
-
-    return list(dict.fromkeys(suggestions))[:5]
-
-
-# ---------------- HEALTH ----------------
+# ---------------- ROOT ----------------
 @app.get("/")
 def root():
     return {"status": "DealCompare API running"}
@@ -187,7 +126,6 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "healthy"}
-
 
 # ---------------- RUN ----------------
 if __name__ == "__main__":
