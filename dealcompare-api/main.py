@@ -109,8 +109,13 @@ def search(query: Optional[str] = Query(None)):
         results.append({
             "product_name": name,
             "brand": brand,
-            "best_deal": best,
-            "other_offers": others
+            "best_deal": {
+                **best,
+                "score": best["score"]
+            },
+            "other_offers": [
+                {**o, "score": o["score"]} for o in others
+            ]
         })
 
     return {
