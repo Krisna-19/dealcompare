@@ -33,6 +33,7 @@ function App() {
       const res = await fetch(
         `${API_BASE_URL}/search?query=${encodeURIComponent(query)}`
     );
+    console.log("API BASE:", import.meta.env.VITE_API_BASE_URL);
 
 
       if (!res.ok) throw new Error("API error");
