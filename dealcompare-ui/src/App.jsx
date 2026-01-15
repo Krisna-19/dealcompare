@@ -7,7 +7,7 @@ const getScoreClass = (score) => {
   return "score-red";
 };
 const API_BASE = "https://dealcompare-backend.onrender.com";
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 
 
 function App() {
@@ -19,6 +19,7 @@ function App() {
 
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
   // 🔍 SEARCH API
   const searchDeals = async () => {
