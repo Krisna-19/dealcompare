@@ -7,6 +7,7 @@ const getScoreClass = (score) => {
   return "score-red";
 };
 const API_BASE = "https://dealcompare-backend.onrender.com";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 
 function App() {
@@ -29,7 +30,7 @@ function App() {
 
     try {
       const res = await fetch(
-        `${API_BASE}/search?query=${encodeURIComponent(query)}`
+        `${API_BASE_URL}/search?query=${encodeURIComponent(query)}`
     );
 
 
@@ -62,7 +63,7 @@ function App() {
 
   try {
     const res = await fetch(
-      `${API_BASE}/suggest?query=${encodeURIComponent(value)}`
+      `${API_BASE_URL}/suggest?query=${encodeURIComponent(value)}`
     );
     const data = await res.json();
 
