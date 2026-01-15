@@ -6,6 +6,8 @@ const getScoreClass = (score) => {
   if (score >= 0.6) return "score-yellow";
   return "score-red";
 };
+const API_BASE = "https://dealcompare-backend.onrender.com";
+
 
 function App() {
   const [query, setQuery] = useState("");
@@ -27,7 +29,7 @@ function App() {
 
     try {
       const res = await fetch(
-        `http://127.0.0.1:8000/search?query=${encodeURIComponent(query)}`
+        `${API_BASE}/search?query=${encodeURIComponent(query)}`
     );
 
 
@@ -60,7 +62,7 @@ function App() {
 
   try {
     const res = await fetch(
-      `http://127.0.0.1:8000/suggest?query=${encodeURIComponent(value)}`
+      `${API_BASE}/suggest?query=${encodeURIComponent(value)}`
     );
     const data = await res.json();
 
