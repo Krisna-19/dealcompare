@@ -6,7 +6,7 @@ const getScoreClass = (score) => {
   if (score >= 0.6) return "score-yellow";
   return "score-red";
 };
-const API_BASE = "https://dealcompare-backend.onrender.com";
+// const API_BASE = "https://dealcompare-backend.onrender.com";
 
 
 
