@@ -76,6 +76,7 @@ function App() {
   }
 };
 
+console.log("API BASE URL:", API_BASE_URL);
 
   // 🔃 SORT WHEN sortOrder CHANGES
   useEffect(() => {
