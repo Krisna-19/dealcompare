@@ -10,7 +10,10 @@ app = FastAPI(title="DealCompare API")
 # ---------- CORS ----------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[ "http://localhost:5173",           # local dev
+        "https://dealcompare.pages.dev",    # Cloudflare Pages
+        "https://dealcompare.in",           # custom domain
+        "https://www.dealcompare.in"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
