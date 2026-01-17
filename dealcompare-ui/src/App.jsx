@@ -156,7 +156,12 @@ console.log("API BASE URL:", API_BASE_URL);
         </select>
       </div>
 
-      {loading && <p className="info">Loading deals...</p>}
+      {loading && (
+        <div className="loader">
+          <div className="spinner"></div>
+          <p>Searching best deals...</p>
+        </div>
+      )}
       {error && <p className="error">{error}</p>}
 
       {/* 🧾 RESULTS */}
