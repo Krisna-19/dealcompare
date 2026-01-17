@@ -112,6 +112,7 @@ console.log("API BASE URL:", API_BASE_URL);
       {/* 🔎 SEARCH BOX */}
       <div className="search-box">
   <input
+    autoFocus
     value={query}
     onChange={(e) => handleInput(e.target.value)}
     onKeyDown={(e) => {
@@ -123,7 +124,7 @@ console.log("API BASE URL:", API_BASE_URL);
     placeholder="Search product (eg: tshirt)"
   />
 
-  <button onClick={searchDeals} disabled={loading}>
+  <button onClick={searchDeals} disabled={loading || !query.trim()}>
     {loading ? "Searching..." : "Search"}
   </button>
 
@@ -162,7 +163,17 @@ console.log("API BASE URL:", API_BASE_URL);
           <p>Searching best deals...</p>
         </div>
       )}
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <div className="error-box">
+          ⚠️ {error}
+        </div>
+    )}
+
+    {!loading && results.length === 0 && query && !error && (
+      <div className="no-results">
+        😕 No deals found for <b>{query}</b>
+      </div>
+    )}
 
       {/* 🧾 RESULTS */}
       <div className="results">
