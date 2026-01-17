@@ -14,6 +14,7 @@ app.add_middleware(
         "https://dealcompare.pages.dev",    # Cloudflare Pages
         "https://dealcompare.in",           # custom domain
         "https://www.dealcompare.in"],
+    allow_origin_regex=r"https://.*\.pages\.dev",    
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
