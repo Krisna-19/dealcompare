@@ -1,4 +1,6 @@
-/* Global */
+/* =========================
+   GLOBAL
+========================= */
 * {
   box-sizing: border-box;
   font-family: "Segoe UI", Roboto, Arial, sans-serif;
@@ -9,14 +11,18 @@ body {
   background: #f5f7fa;
 }
 
-/* Container */
+/* =========================
+   CONTAINER
+========================= */
 .container {
   max-width: 1100px;
   margin: auto;
   padding: 24px;
 }
 
-/* Header */
+/* =========================
+   HEADER
+========================= */
 .title {
   text-align: center;
   font-size: 2.2rem;
@@ -29,8 +35,11 @@ body {
   margin-bottom: 24px;
 }
 
-/* Search box */
+/* =========================
+   SEARCH BOX
+========================= */
 .search-box {
+  position: relative;
   display: flex;
   gap: 10px;
   justify-content: center;
@@ -45,6 +54,12 @@ body {
   border: 1px solid #ccc;
 }
 
+.search-box input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
 .search-box button {
   padding: 10px 18px;
   font-size: 16px;
@@ -53,13 +68,55 @@ body {
   color: white;
   border-radius: 6px;
   cursor: pointer;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
 }
 
-.search-box button:hover {
+.search-box button:hover:not(:disabled) {
   background: #1e4fd6;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.15);
 }
 
-/* Status messages */
+.search-box button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* =========================
+   SUGGESTIONS
+========================= */
+.suggestions {
+  position: absolute;
+  top: 45px;
+  left: 0;
+  width: 100%;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+  z-index: 1000;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.suggestions li {
+  padding: 10px;
+  cursor: pointer;
+}
+
+.suggestions li:hover {
+  background-color: #f2f2f2;
+}
+
+/* =========================
+   STATUS MESSAGES
+========================= */
 .info {
   text-align: center;
   color: #333;
@@ -70,14 +127,60 @@ body {
   color: red;
 }
 
-/* Results grid */
+.error-box {
+  background: #ffe5e5;
+  color: #b00020;
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin: 12px 0;
+  font-weight: 500;
+}
+
+.no-results {
+  margin-top: 20px;
+  color: #555;
+  font-size: 16px;
+  text-align: center;
+}
+
+/* =========================
+   LOADER
+========================= */
+.loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 20px 0;
+  color: #333;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #fff;
+  border-top: 2px solid transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* =========================
+   RESULTS GRID
+========================= */
 .results {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 20px;
 }
 
-/* Card */
+/* =========================
+   CARD
+========================= */
 .card {
   background: white;
   border-radius: 12px;
@@ -91,7 +194,9 @@ body {
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
 }
 
-/* Card header */
+/* =========================
+   CARD HEADER
+========================= */
 .card-header {
   display: flex;
   justify-content: space-between;
@@ -104,17 +209,38 @@ body {
   margin: 0;
 }
 
-/* Badge */
-.badge {
-  background: #16a34a;
-  color: white;
-  font-size: 12px;
-  padding: 4px 8px;
-  border-radius: 20px;
-  font-weight: bold;
+/* =========================
+   BADGES
+========================= */
+.badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
-/* Best deal */
+.badge {
+  font-size: 11px;
+  font-weight: bold;
+  padding: 4px 8px;
+  border-radius: 20px;
+  color: white;
+}
+
+.badge.best {
+  background: #16a34a;
+}
+
+.badge.price {
+  background: #2563eb;
+}
+
+.badge.rating {
+  background: #f59e0b;
+}
+
+/* =========================
+   BEST DEAL BOX
+========================= */
 .best-deal {
   background: #f0fdf4;
   border: 1px solid #bbf7d0;
@@ -127,7 +253,9 @@ body {
   margin: 4px 0;
 }
 
-/* Link */
+/* =========================
+   LINK
+========================= */
 .link {
   display: inline-block;
   margin-top: 8px;
@@ -140,7 +268,9 @@ body {
   text-decoration: underline;
 }
 
-/* Other offers */
+/* =========================
+   OTHER OFFERS
+========================= */
 .others {
   margin-top: 10px;
   border-top: 1px dashed #ddd;
@@ -161,164 +291,9 @@ body {
   color: #555;
 }
 
-/* Mobile */
-@media (max-width: 480px) {
-  .search-box {
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .search-box input {
-    width: 100%;
-  }
-}
-/* Badges container */
-.badges {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-/* Base badge */
-.badge {
-  font-size: 11px;
-  font-weight: bold;
-  padding: 4px 8px;
-  border-radius: 20px;
-  color: white;
-}
-
-/* Badge types */
-.badge.best {
-  background: #16a34a; /* green */
-}
-
-.badge.price {
-  background: #2563eb; /* blue */
-}
-
-.badge.rating {
-  background: #f59e0b; /* amber */
-}
-.sort-box {
-  margin-top: 10px;
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.sort-box select {
-  padding: 6px 10px;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  cursor: pointer;
-}
-.suggestions {
-  position: absolute;
-  background: white;
-  border: 1px solid #ddd;
-  width: 300px;
-  max-height: 200px;
-  overflow-y: auto;
-  border-radius: 6px;
-  margin-top: 4px;
-  z-index: 100;
-}
-
-.suggestion-item {
-  padding: 10px;
-  cursor: pointer;
-}
-
-.suggestion-item:hover {
-  background-color: #f2f2f2;
-}
-.search-box {
-  position: relative;
-}
-
-.suggestions {
-  position: absolute;
-  top: 45px;
-  left: 0;
-  width: 100%;
-  background: white;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  z-index: 1000;
-}
-
-.suggestion-item {
-  padding: 10px;
-  cursor: pointer;
-}
-
-.suggestion-item:hover {
-  background-color: #f2f2f2;
-}
-.search-box {
-  position: relative;
-}
-
-.suggestions {
-  position: absolute;
-  top: 45px;
-  left: 0;
-  width: 100%;
-  background: white;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  list-style: none;
-  padding: 0;
-  margin: 4px 0 0;
-  z-index: 10;
-}
-
-.suggestions li {
-  padding: 10px;
-  cursor: pointer;
-}
-
-.suggestions li:hover {
-  background-color: #f2f2f2;
-}
-.score-badge {
-  margin-top: 8px;
-  display: inline-block;
-  background: linear-gradient(135deg, #16a34a, #22c55e);
-  color: white;
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-size: 0.85rem;
-  font-weight: bold;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-}
-.score-badge {
-  margin-top: 8px;
-  display: inline-block;
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-size: 0.85rem;
-  font-weight: bold;
-  color: white;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-}
-
-/* 🟢 Excellent */
-.score-green {
-  background: linear-gradient(135deg, #16a34a, #22c55e);
-}
-
-/* 🟡 Good */
-.score-yellow {
-  background: linear-gradient(135deg, #facc15, #eab308);
-  color: #1f2937;
-}
-
-/* 🔴 Average */
-.score-red {
-  background: linear-gradient(135deg, #dc2626, #ef4444);
-}
+/* =========================
+   SCORE BADGE
+========================= */
 .score-badge {
   margin-left: 8px;
   padding: 4px 8px;
@@ -341,7 +316,10 @@ body {
   background: #fee2e2;
   color: #991b1b;
 }
-/* ---------- TOOLTIP ---------- */
+
+/* =========================
+   TOOLTIP
+========================= */
 .tooltip {
   position: relative;
   cursor: help;
@@ -360,7 +338,6 @@ body {
   border-radius: 6px;
   font-size: 12px;
   white-space: nowrap;
-  text-align: center;
   z-index: 20;
   transition: opacity 0.2s ease;
 }
@@ -370,7 +347,6 @@ body {
   opacity: 1;
 }
 
-/* Arrow */
 .tooltip-text::after {
   content: "";
   position: absolute;
@@ -381,39 +357,17 @@ body {
   border-style: solid;
   border-color: #111827 transparent transparent transparent;
 }
-.loader {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin: 20px 0;
-  color: #333;
-}
 
-.spinner {
-  width: 36px;
-  height: 36px;
-  border: 4px solid #ddd;
-  border-top: 4px solid #007bff;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 10px;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
+/* =========================
+   MOBILE
+========================= */
+@media (max-width: 480px) {
+  .search-box {
+    flex-direction: column;
+    align-items: stretch;
   }
-}
-.error-box {
-  background: #ffe5e5;
-  color: #b00020;
-  padding: 10px 14px;
-  border-radius: 6px;
-  margin: 12px 0;
-  font-weight: 500;
-}
-.no-results {
-  margin-top: 20px;
-  color: #555;
-  font-size: 16px;
+
+  .search-box input {
+    width: 100%;
+  }
 }

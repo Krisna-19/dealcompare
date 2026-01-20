@@ -6,9 +6,6 @@ const getScoreClass = (score) => {
   if (score >= 0.6) return "score-yellow";
   return "score-red";
 };
-// const API_BASE = "https://dealcompare-backend.onrender.com";
-
-
 
 function App() {
   const [query, setQuery] = useState("");
@@ -19,9 +16,10 @@ function App() {
 
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-  // 🔍 SEARCH API
+  /* 🔍 SEARCH API */
   const searchDeals = async () => {
     if (!query) return;
 
@@ -32,9 +30,7 @@ function App() {
     try {
       const res = await fetch(
         `${API_BASE_URL}/search?query=${encodeURIComponent(query)}`
-    );
-    console.log("API BASE:", import.meta.env.VITE_API_BASE_URL);
-
+      );
 
       if (!res.ok) throw new Error("API error");
 
@@ -53,56 +49,57 @@ function App() {
     }
   };
 
-  // 💡 AUTOSUGGEST INPUT HANDLER
+  /* 💡 AUTOSUGGEST INPUT HANDLER */
   const handleInput = async (value) => {
-  setQuery(value);
+    setQuery(value);
 
-  if (value.length < 2) {
-    setSuggestions([]);
-    setShowSuggestions(false);
-    return;
-  }
+    if (value.length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
 
-  try {
-    const res = await fetch(
-      `${API_BASE_URL}/suggest?query=${encodeURIComponent(value)}`
-    );
-    const data = await res.json();
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/suggest?query=${encodeURIComponent(value)}`
+      );
+      const data = await res.json();
 
-    setSuggestions(data);
-    setShowSuggestions(true);
-  } catch (err) {
-    console.error("Suggestion fetch failed", err);
-  }
-};
+      setSuggestions(data);
+      setShowSuggestions(true);
+    } catch (err) {
+      console.error("Suggestion fetch failed", err);
+    }
+  };
 
-console.log("API BASE URL:", API_BASE_URL);
-
-  // 🔃 SORT WHEN sortOrder CHANGES
+  /* 🔃 SORT */
   useEffect(() => {
-  if (results.length === 0) return;
+    if (results.length === 0) return;
 
-  const sorted = [...results];
+    const sorted = [...results];
 
-  if (sortOrder === "low") {
-    sorted.sort((a, b) => {
-      const priceA = parseInt(a.best_deal.price.replace("₹", "").replace(",", ""));
-      const priceB = parseInt(b.best_deal.price.replace("₹", "").replace(",", ""));
-      return priceA - priceB;
-    });
-  }
+    if (sortOrder === "low") {
+      sorted.sort((a, b) => {
+        const priceA = parseInt(
+          a.best_deal.price.replace("₹", "").replace(",", "")
+        );
+        const priceB = parseInt(
+          b.best_deal.price.replace("₹", "").replace(",", "")
+        );
+        return priceA - priceB;
+      });
+    }
 
-  if (sortOrder === "rating") {
-    sorted.sort((a, b) => b.best_deal.rating - a.best_deal.rating);
-  }
+    if (sortOrder === "rating") {
+      sorted.sort((a, b) => b.best_deal.rating - a.best_deal.rating);
+    }
 
-  if (sortOrder === "score") {
-    sorted.sort((a, b) => b.best_deal.score - a.best_deal.score);
-  }
+    if (sortOrder === "score") {
+      sorted.sort((a, b) => b.best_deal.score - a.best_deal.score);
+    }
 
-  setResults(sorted);
-}, [sortOrder]);
-
+    setResults(sorted);
+  }, [sortOrder]);
 
   return (
     <div className="container">
@@ -111,41 +108,41 @@ console.log("API BASE URL:", API_BASE_URL);
 
       {/* 🔎 SEARCH BOX */}
       <div className="search-box">
-  <input
-    autoFocus
-    value={query}
-    onChange={(e) => handleInput(e.target.value)}
-    onKeyDown={(e) => {
-      if (e.key === "Enter") {
-        setShowSuggestions(false);
-        searchDeals();
-      }
-    }}
-    placeholder="Search product (eg: tshirt)"
-  />
-
-  <button onClick={searchDeals} disabled={loading || !query.trim()}>
-    {loading ? "Searching..." : "Search"}
-  </button>
-
-  {showSuggestions && suggestions.length > 0 && (
-    <ul className="suggestions">
-      {suggestions.map((s, i) => (
-        <li
-          key={i}
-          onClick={() => {
-            setQuery(s);
-            setShowSuggestions(false);
-            searchDeals();
+        <input
+          autoFocus
+          value={query}
+          onChange={(e) => handleInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              setShowSuggestions(false);
+              searchDeals();
+            }
           }}
-        >
-          {s}
-        </li>
-      ))}
-    </ul>
-  )}
-</div>
+          placeholder="Search product (eg: tshirt)"
+        />
 
+        <button onClick={searchDeals} disabled={loading || !query.trim()}>
+          {loading && <span className="spinner"></span>}
+          {loading ? "Searching..." : "Search"}
+        </button>
+
+        {showSuggestions && suggestions.length > 0 && (
+          <ul className="suggestions">
+            {suggestions.map((s, i) => (
+              <li
+                key={i}
+                onClick={() => {
+                  setQuery(s);
+                  setShowSuggestions(false);
+                  searchDeals();
+                }}
+              >
+                {s}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       {/* 🔃 SORT */}
       <div className="sort-box">
@@ -153,27 +150,27 @@ console.log("API BASE URL:", API_BASE_URL);
         <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)}>
           <option value="low">💰 Price: Low → High</option>
           <option value="rating">⭐ Rating: High → Low</option>
-          <option value="score">🧠 Smart Score</option> 
+          <option value="score">🧠 Smart Score</option>
         </select>
       </div>
 
+      {/* ⏳ LOADER */}
       {loading && (
         <div className="loader">
           <div className="spinner"></div>
           <p>Searching best deals...</p>
         </div>
       )}
-      {error && (
-        <div className="error-box">
-          ⚠️ {error}
-        </div>
-    )}
 
-    {!loading && results.length === 0 && query && !error && (
-      <div className="no-results">
-        😕 No deals found for <b>{query}</b>
-      </div>
-    )}
+      {/* ❌ ERROR */}
+      {error && <div className="error-box">⚠️ {error}</div>}
+
+      {/* 😕 NO RESULTS */}
+      {!loading && results.length === 0 && query && !error && (
+        <div className="no-results">
+          😕 No deals found for <b>{query}</b>
+        </div>
+      )}
 
       {/* 🧾 RESULTS */}
       <div className="results">
@@ -184,44 +181,44 @@ console.log("API BASE URL:", API_BASE_URL);
               <span className="badge best">BEST DEAL</span>
             </div>
 
-            <p><b>Brand:</b> {item.brand}</p>
+            <p>
+              <b>Brand:</b> {item.brand}
+            </p>
 
             <div className="best-deal">
-          <p>
-                <b>Price:</b> {item.best_deal.price}<br />
-                <b>Platform:</b> {item.best_deal.platform}<br />
+              <p>
+                <b>Price:</b> {item.best_deal.price}
+                <br />
+                <b>Platform:</b> {item.best_deal.platform}
+                <br />
                 <b>Rating:</b> ⭐ {item.best_deal.rating}
-                <span
-                  className={`score-badge tooltip ${getScoreClass(item.best_deal.score)}`}
-                >
-                  🧠 Score: {item.best_deal.score.toFixed(2)}
-
-                  <span className="tooltip-text">
-                    Smart Score combines<br />
-                    💰 Price (40%)<br />
-                    ⭐ Rating (40%)<br />
-                    🚚 Delivery speed (20%)<br />
-                    Higher score = better deal
-                  </span>
-                </span>
               </p>
-          {/* ✅ SMART SCORE BADGE */}
-          {item.best_deal.score !== undefined && (
-            <div className={`score-badge ${getScoreClass(item.best_deal.score)}`}>
-              🏆 Smart Score: {item.best_deal.score.toFixed(2)}
+
+              <span
+                className={`score-badge tooltip ${getScoreClass(
+                  item.best_deal.score
+                )}`}
+              >
+                🧠 Score: {item.best_deal.score.toFixed(2)}
+                <span className="tooltip-text">
+                  Smart Score combines
+                  <br />💰 Price (40%)
+                  <br />⭐ Rating (40%)
+                  <br />🚚 Delivery speed (20%)
+                  <br />
+                  Higher score = better deal
+                </span>
+              </span>
+
+              <a
+                href={item.best_deal.product_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="link"
+              >
+                View Product →
+              </a>
             </div>
-  )}
-
-        <a
-          href={item.best_deal.product_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="link"
-        >
-          View Product →
-        </a>
-      </div>
-
           </div>
         ))}
       </div>
