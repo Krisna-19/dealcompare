@@ -10,11 +10,13 @@ app = FastAPI(title="DealCompare API")
 # ---------- CORS ----------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[ "http://localhost:5173",           # local dev
-        "https://dealcompare.pages.dev",    # Cloudflare Pages
-        "https://dealcompare.in",           # custom domain
-        "https://www.dealcompare.in"],
-    allow_origin_regex=r"https://.*\.pages\.dev",    
+    allow_origins=[
+        "http://localhost:5173",
+        "https://dealcompare.pages.dev",
+        "https://dealcompare.in",
+        "https://www.dealcompare.in",
+    ],
+    allow_origin_regex=r"https://.*\.pages\.dev",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -31,7 +33,7 @@ PRODUCTS = [
         "platform": "Myntra",
         "rating": 4.3,
         "delivery_days": 3,
-        "product_url": "https://myntra.com/levis-tshirt"
+        "product_url": "https://myntra.com/levis-tshirt",
     },
     {
         "id": 6,
@@ -42,18 +44,19 @@ PRODUCTS = [
         "platform": "Ajio",
         "rating": 4.2,
         "delivery_days": 4,
-        "product_url": "https://ajio.com/levis-tshirt"
-    }
+        "product_url": "https://ajio.com/levis-tshirt",
+    },
 ]
 
 # ---------- HELPERS ----------
 def normalize(text: str) -> str:
-    if not text:
-        return ""
-    return re.sub(r"[^a-z0-9]", "", text.lower())
+    return re.sub(r"[^a-z0-9]", "", text.lower()) if text else ""
 
-def price_value(p):
-    return int(p["price"].replace("₹", "").replace(",", ""))
+def price_value(product: dict) -> int:
+    try:
+        return int(product["price"].replace("₹", "").replace(",", ""))
+    except Exception:
+        return 0
 
 # ---------- ROUTES ----------
 @app.get("/")
@@ -71,50 +74,48 @@ def search(query: Optional[str] = Query(None)):
 
     q = normalize(query)
 
-    filtered = [
+    matched = [
         p for p in PRODUCTS
         if q in normalize(p["name"])
         or q in normalize(p["brand"])
         or q in normalize(p["category"])
     ]
 
-    if not filtered:
+    if not matched:
         return {"message": "Found 0 best deals", "results": []}
 
-    min_price = min(price_value(p) for p in filtered)
+    min_price = min(price_value(p) for p in matched if price_value(p) > 0)
+    min_delivery = min(p["delivery_days"] for p in matched)
 
-    # ✅ CALCULATE SCORE
-    # Find min delivery days
-    min_delivery = min(p["delivery_days"] for p in filtered)
+    scored_products = []
 
-    for p in filtered:
-        # Normalize rating (0–1)
+    for p in matched:
+        price = price_value(p)
+
         rating_score = (p["rating"] / 5) * 0.4
-
-        # Normalize price (lower is better)
-        price_score = (min_price / price_value(p)) * 0.4
-
-        # Normalize delivery (faster is better)
+        price_score = (min_price / price) * 0.4 if price else 0
         delivery_score = (min_delivery / p["delivery_days"]) * 0.2
 
-        # Final Smart Score
-        p["score"] = round(
-            rating_score + price_score + delivery_score,
-            3
-        )
+        score = round(rating_score + price_score + delivery_score, 3)
 
-    # ✅ BEST DEAL = highest score
-    best = max(filtered, key=lambda x: x["score"])
-    others = [p for p in filtered if p != best]
+        product_copy = p.copy()
+        product_copy["score"] = score
+
+        scored_products.append(product_copy)
+
+    best = max(scored_products, key=lambda x: x["score"])
+    others = [p for p in scored_products if p["id"] != best["id"]]
 
     return {
-        "message": f"Found 1 best deals",
-        "results": [{
-            "product_name": best["name"],
-            "brand": best["brand"],
-            "best_deal": best,
-            "other_offers": others
-        }]
+        "message": "Found best deal",
+        "results": [
+            {
+                "product_name": best["name"],
+                "brand": best["brand"],
+                "best_deal": best,
+                "other_offers": others,
+            }
+        ],
     }
 
 @app.get("/suggest")
@@ -126,6 +127,7 @@ def suggest(query: str):
         if q in normalize(p["name"]):
             suggestions.append(p["name"])
 
+    # remove duplicates, keep order
     return list(dict.fromkeys(suggestions))[:5]
 
 # ---------- RUN ----------
