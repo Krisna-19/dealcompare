@@ -4,6 +4,10 @@ import uvicorn
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
+from scrapers.flipkart import scrape_flipkart
+from scrapers.myntra import scrape_myntra
+from scoring import calculate_score
+
 
 app = FastAPI(title="DealCompare API")
 
@@ -72,50 +76,39 @@ def search(query: Optional[str] = Query(None)):
     if not query:
         return {"message": "No query", "results": []}
 
-    q = normalize(query)
+    flipkart = scrape_flipkart(query)
+    myntra = scrape_myntra(query)
 
-    matched = [
-        p for p in PRODUCTS
-        if q in normalize(p["name"])
-        or q in normalize(p["brand"])
-        or q in normalize(p["category"])
-    ]
+    all_products = flipkart + myntra
 
-    if not matched:
-        return {"message": "Found 0 best deals", "results": []}
+    if not all_products:
+        return {"message": "Found 0 deals", "results": []}
 
-    min_price = min(price_value(p) for p in matched if price_value(p) > 0)
-    min_delivery = min(p["delivery_days"] for p in matched)
+    # add numeric price
+    for p in all_products:
+        p["price_value"] = int(p["price"].replace("₹","").replace(",",""))
 
-    scored_products = []
+    min_price = min(p["price_value"] for p in all_products)
+    min_delivery = min(p["delivery_days"] for p in all_products)
 
-    for p in matched:
-        price = price_value(p)
+    for p in all_products:
+        p["score"] = (
+            (p["rating"]/5)*0.4 +
+            (min_price/p["price_value"])*0.4 +
+            (min_delivery/p["delivery_days"])*0.2
+        )
 
-        rating_score = (p["rating"] / 5) * 0.4
-        price_score = (min_price / price) * 0.4 if price else 0
-        delivery_score = (min_delivery / p["delivery_days"]) * 0.2
-
-        score = round(rating_score + price_score + delivery_score, 3)
-
-        product_copy = p.copy()
-        product_copy["score"] = score
-
-        scored_products.append(product_copy)
-
-    best = max(scored_products, key=lambda x: x["score"])
-    others = [p for p in scored_products if p["id"] != best["id"]]
+    best = max(all_products, key=lambda x: x["score"])
+    others = [p for p in all_products if p != best]
 
     return {
         "message": "Found best deal",
-        "results": [
-            {
-                "product_name": best["name"],
-                "brand": best["brand"],
-                "best_deal": best,
-                "other_offers": others,
-            }
-        ],
+        "results": [{
+            "product_name": best["name"],
+            "brand": "N/A",
+            "best_deal": best,
+            "other_offers": others
+        }]
     }
 
 @app.get("/suggest")
