@@ -70,46 +70,50 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "healthy"}
-
 @app.get("/search")
 def search(query: Optional[str] = Query(None)):
-    if not query:
-        return {"message": "No query", "results": []}
+    try:
+        if not query:
+            return {"message": "No query", "results": []}
 
-    flipkart = scrape_flipkart(query)
-    myntra = scrape_myntra(query)
+        flipkart = scrape_flipkart(query)
+        myntra = scrape_myntra(query)
 
-    all_products = flipkart + myntra
+        all_products = flipkart + myntra
 
-    if not all_products:
-        return {"message": "Found 0 deals", "results": []}
+        if not all_products:
+            return {"message": "Found 0 deals", "results": []}
 
-    # add numeric price
-    for p in all_products:
-        p["price_value"] = int(p["price"].replace("₹","").replace(",",""))
+        for p in all_products:
+            p["price_value"] = int(p["price"].replace("₹","").replace(",",""))
 
-    min_price = min(p["price_value"] for p in all_products)
-    min_delivery = min(p["delivery_days"] for p in all_products)
+        min_price = min(p["price_value"] for p in all_products)
+        min_delivery = min(p["delivery_days"] for p in all_products)
 
-    for p in all_products:
-        p["score"] = (
-            (p["rating"]/5)*0.4 +
-            (min_price/p["price_value"])*0.4 +
-            (min_delivery/p["delivery_days"])*0.2
-        )
+        for p in all_products:
+            p["score"] = (
+                (p["rating"] / 5) * 0.4 +
+                (min_price / p["price_value"]) * 0.4 +
+                (min_delivery / p["delivery_days"]) * 0.2
+            )
 
-    best = max(all_products, key=lambda x: x["score"])
-    others = [p for p in all_products if p != best]
+        best = max(all_products, key=lambda x: x["score"])
+        others = [p for p in all_products if p != best]
 
-    return {
-        "message": "Found best deal",
-        "results": [{
-            "product_name": best["name"],
-            "brand": "N/A",
-            "best_deal": best,
-            "other_offers": others
-        }]
-    }
+        return {
+            "message": "Found best deal",
+            "results": [{
+                "product_name": best["name"],
+                "brand": "N/A",
+                "best_deal": best,
+                "other_offers": others
+            }]
+        }
+
+    except Exception as e:
+        print("ERROR:", e)
+        return {"message": "Internal error", "results": []}
+
 
 @app.get("/suggest")
 def suggest(query: str):
