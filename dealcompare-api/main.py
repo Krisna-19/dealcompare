@@ -84,8 +84,23 @@ def search(query: Optional[str] = Query(None)):
         if not all_products:
             return {"message": "Found 0 deals", "results": []}
 
+        valid_products = []
+
         for p in all_products:
-            p["price_value"] = int(p["price"].replace("₹","").replace(",",""))
+            try:
+                p["price_value"] = int(
+                    p["price"].replace("₹", "").replace(",", "").strip()
+                )
+                if p["price_value"] > 0:
+                    valid_products.append(p)
+            except:
+                continue
+
+        all_products = valid_products
+
+        if not all_products:
+            return {"message": "No valid prices found", "results": []}
+
 
         min_price = min(p["price_value"] for p in all_products)
         min_delivery = min(p["delivery_days"] for p in all_products)
