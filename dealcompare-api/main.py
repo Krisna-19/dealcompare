@@ -76,8 +76,19 @@ def search(query: Optional[str] = Query(None)):
         if not query:
             return {"message": "No query", "results": []}
 
-        flipkart = scrape_flipkart(query)
-        myntra = scrape_myntra(query)
+        flipkart = []
+        myntra = []
+
+        try:
+            flipkart = scrape_flipkart(query)
+        except:
+            pass
+
+        try:
+            myntra = scrape_myntra(query)
+        except:
+            pass
+
 
         all_products = flipkart + myntra
 
