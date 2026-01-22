@@ -82,7 +82,7 @@ def search(query: Optional[str] = Query(None)):
         all_products = flipkart + myntra
 
         if not all_products:
-            return {"message": "Found 0 deals", "results": []}
+            return {"message": "No deals found", "results": []}
 
         valid_products = []
 
@@ -96,24 +96,22 @@ def search(query: Optional[str] = Query(None)):
             except:
                 continue
 
-        all_products = valid_products
-
-        if not all_products:
+        if not valid_products:
             return {"message": "No valid prices found", "results": []}
 
+        min_price = min(p["price_value"] for p in valid_products)
+        min_delivery = min(p.get("delivery_days", 4) for p in valid_products)
 
-        min_price = min(p["price_value"] for p in all_products)
-        min_delivery = min(p["delivery_days"] for p in all_products)
-
-        for p in all_products:
-            p["score"] = (
-                (p["rating"] / 5) * 0.4 +
+        for p in valid_products:
+            p["score"] = round(
+                (p.get("rating", 3.5) / 5) * 0.4 +
                 (min_price / p["price_value"]) * 0.4 +
-                (min_delivery / p["delivery_days"]) * 0.2
+                (min_delivery / p.get("delivery_days", 4)) * 0.2,
+                3
             )
 
-        best = max(all_products, key=lambda x: x["score"])
-        others = [p for p in all_products if p != best]
+        best = max(valid_products, key=lambda x: x["score"])
+        others = [p for p in valid_products if p is not best]
 
         return {
             "message": "Found best deal",
@@ -126,8 +124,10 @@ def search(query: Optional[str] = Query(None)):
         }
 
     except Exception as e:
-        print("ERROR:", e)
-        return {"message": "Internal error", "results": []}
+        import traceback
+        traceback.print_exc()
+        return {"message": str(e), "results": []}
+
 
 
 @app.get("/suggest")
