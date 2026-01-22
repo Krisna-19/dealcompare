@@ -93,7 +93,7 @@ def search(query: Optional[str] = Query(None)):
         all_products = flipkart + myntra
 
         if not all_products:
-            return {"message": "No deals found", "results": []}
+            return {"message": "No deals found (sites blocked)", "results": []}
 
         valid_products = []
 
