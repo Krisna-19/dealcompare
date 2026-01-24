@@ -76,15 +76,15 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "healthy"}
-amazon_url = build_amazon_search_link(query)
+amazon_url = build_amazon_search_link(Query)
 
 
 @app.get("/search")
-def search(query: Optional[str] = Query(None)):
-    if not query:
-        return {"message": "No query", "results": []}
+def search(Query: Optional[str] = Query(None)):
+    if not Query:
+        return {"message": "No Query", "results": []}
 
-    q = query.lower().strip()
+    q = Query.lower().strip()
     now = time.time()
 
     # 1️⃣ Return cached result if exists
@@ -159,8 +159,8 @@ def search(query: Optional[str] = Query(None)):
 
 
 @app.get("/suggest")
-def suggest(query: str):
-    q = normalize(query)
+def suggest(Query: str):
+    q = normalize(Query)
     suggestions = []
 
     for p in PRODUCTS:
