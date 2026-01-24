@@ -3,7 +3,7 @@ import os
 import uvicorn
 from seed_data import SEED_PRODUCTS
 import time
-from fastapi import FastAPI, query
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 from scrapers.flipkart import scrape_flipkart
