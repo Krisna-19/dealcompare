@@ -10,6 +10,11 @@ from scrapers.flipkart import scrape_flipkart
 from scrapers.myntra import scrape_myntra
 from scoring import calculate_score
 from affiliates.amazon_links import build_amazon_search_link
+import sys
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 
 
 
