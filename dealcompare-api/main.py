@@ -3,7 +3,7 @@ import os
 import uvicorn
 from seed_data import SEED_PRODUCTS
 import time
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, query
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 from scrapers.flipkart import scrape_flipkart
@@ -76,15 +76,15 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "healthy"}
-amazon_url = build_amazon_search_link(Query)
+amazon_url = build_amazon_search_link(query)
 
 
 @app.get("/search")
-def search(Query: Optional[str] = Query(None)):
-    if not Query:
-        return {"message": "No Query", "results": []}
+def search(query: Optional[str] = query(None)):
+    if not query:
+        return {"message": "No query", "results": []}
 
-    q = Query.lower().strip()
+    q = query.lower().strip()
     now = time.time()
 
     # 1️⃣ Return cached result if exists
@@ -161,8 +161,8 @@ def search(Query: Optional[str] = Query(None)):
 
 
 @app.get("/suggest")
-def suggest(Query: str):
-    q = normalize(Query)
+def suggest(query: str):
+    q = normalize(query)
     suggestions = []
 
     for p in PRODUCTS:
