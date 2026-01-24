@@ -139,14 +139,16 @@ def search(Query: Optional[str] = Query(None)):
     others = [p for p in valid if p is not best]
 
     response = {
-        "message": "Found best deal",
-        "results": [{
-            "product_name": best["name"],
-            "brand": "N/A",
-            "best_deal": best,
-            "other_offers": others
-        }]
-    }
+    "message": "Found best deal",
+    "results": [{
+        "product_name": best["name"],
+        "brand": "N/A",
+        "best_deal": best,
+        "other_offers": others,
+        "amazon_affiliate_url": amazon_url
+    }]
+}
+
 
     # 5️⃣ Cache response
     CACHE[q] = {
