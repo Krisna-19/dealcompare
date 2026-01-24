@@ -9,6 +9,8 @@ from typing import Optional
 from scrapers.flipkart import scrape_flipkart
 from scrapers.myntra import scrape_myntra
 from scoring import calculate_score
+from affiliates.amazon_links import build_amazon_search_link
+
 
 
 app = FastAPI(title="DealCompare API")
@@ -74,6 +76,8 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "healthy"}
+amazon_url = build_amazon_search_link(query)
+
 
 @app.get("/search")
 def search(query: Optional[str] = Query(None)):
