@@ -76,11 +76,10 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "healthy"}
-amazon_url = build_amazon_search_link(query)
 
 
 @app.get("/search")
-def search(query: Optional[str] = query(None)):
+def search(query: Optional[str] = Query(None)):
     if not query:
         return {"message": "No query", "results": []}
 
@@ -138,17 +137,19 @@ def search(query: Optional[str] = query(None)):
     best = max(valid, key=lambda x: x["score"])
     others = [p for p in valid if p is not best]
 
-    response = {
-    "message": "Found best deal",
-    "results": [{
-        "product_name": best["name"],
-        "brand": "N/A",
-        "best_deal": best,
-        "other_offers": others,
-        "amazon_affiliate_url": amazon_url
-    }]
-}
+    # ✅ BUILD AMAZON AFFILIATE LINK HERE (CORRECT PLACE)
+    amazon_url = build_amazon_search_link(query)
 
+    response = {
+        "message": "Found best deal",
+        "results": [{
+            "product_name": best["name"],
+            "brand": "N/A",
+            "best_deal": best,
+            "other_offers": others,
+            "amazon_affiliate_url": amazon_url
+        }]
+    }
 
     # 5️⃣ Cache response
     CACHE[q] = {
@@ -157,7 +158,6 @@ def search(query: Optional[str] = query(None)):
     }
 
     return response
-
 
 
 @app.get("/suggest")
