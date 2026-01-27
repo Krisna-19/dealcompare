@@ -196,32 +196,41 @@ function App() {
                 <b>Rating:</b> ⭐ {item.best_deal.rating}
               </p>
 
-              <span
-                className={`score-badge tooltip ${getScoreClass(
-                  item.best_deal.score
-                )}`}
-              >
-                🧠 Score: {item.best_deal.score.toFixed(2)}
-                <span className="tooltip-text">
-                  Smart Score combines
-                  <br />💰 Price (40%)
-                  <br />⭐ Rating (40%)
-                  <br />🚚 Delivery speed (20%)
-                  <br />
-                  Higher score = better deal
-                </span>
-              </span>
-
               <a
                 href={item.best_deal.product_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="link"
+                className="btn"
               >
-                View Product →
+                View Best Deal →
               </a>
+
+              {item.amazon_affiliate_url && (
+                <a
+                  href={item.amazon_affiliate_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn secondary"
+                >
+                  View on Amazon →
+                </a>
+              )}
             </div>
+
+            {item.other_offers && item.other_offers.length > 0 && (
+              <details className="other-offers">
+                <summary>Other offers</summary>
+                <ul>
+                  {item.other_offers.map((offer, idx) => (
+                    <li key={idx}>
+                      {offer.platform} – {offer.price} (⭐ {offer.rating})
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
           </div>
+
         ))}
       </div>
     </div>
