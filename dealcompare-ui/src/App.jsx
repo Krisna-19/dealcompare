@@ -25,7 +25,7 @@ function App() {
     setLoading(true);
     setError("");
 
-    const res = await fetch(
+      const res = await fetch(
       `${API_BASE_URL}/search?query=${encodeURIComponent(query)}`
     );
 
@@ -35,13 +35,15 @@ function App() {
 
     const data = await res.json();
 
-    // 🔥 IMPORTANT FIX
+    // ✅ FIXED LOGIC
     if (data.results && data.results.length > 0) {
-      setResults(data.results);   // results is an ARRAY
+      setResults(data.results);
+      setError(""); // 🔴 clear previous error
     } else {
       setResults([]);
       setError("No deals found");
     }
+
   } catch (err) {
     console.error(err);
     setError("Failed to fetch deals");
