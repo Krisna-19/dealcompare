@@ -21,34 +21,35 @@ function App() {
 
   /* 🔍 SEARCH API */
   const searchDeals = async () => {
-    if (!query) return;
-
+  try {
     setLoading(true);
     setError("");
-    setShowSuggestions(false);
 
-    try {
-      const res = await fetch(
-        `${API_BASE_URL}/search?query=${encodeURIComponent(query)}`
-      );
-      console.log("API_BASE_URL =", API_BASE_URL);
+    const res = await fetch(
+      `${API_BASE_URL}/search?query=${encodeURIComponent(query)}`
+    );
 
-      if (!res.ok) throw new Error("API error");
-
-      const data = await res.json();
-
-      const sortedByScore = [...(data.results || [])].sort(
-        (a, b) => b.best_deal.score - a.best_deal.score
-      );
-
-      setResults(sortedByScore);
-    } catch (err) {
-      setError("Failed to fetch deals");
-      console.error(err);
-    } finally {
-      setLoading(false);
+    if (!res.ok) {
+      throw new Error("API error");
     }
-  };
+
+    const data = await res.json();
+
+    // 🔥 IMPORTANT FIX
+    if (data.results && data.results.length > 0) {
+      setResults(data.results);   // results is an ARRAY
+    } else {
+      setResults([]);
+      setError("No deals found");
+    }
+  } catch (err) {
+    console.error(err);
+    setError("Failed to fetch deals");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   /* 💡 AUTOSUGGEST INPUT HANDLER */
   const handleInput = async (value) => {
