@@ -371,3 +371,86 @@ body {
     width: 100%;
   }
 }
+/* ===== RESULTS ===== */
+.results {
+  margin-top: 24px;
+  display: grid;
+  gap: 20px;
+}
+
+.card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.12);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.badge.best {
+  background: #16a34a;
+  color: white;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 999px;
+}
+
+/* ===== BUTTONS ===== */
+.btn {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 8px 14px;
+  background: #2563eb;
+  color: #fff;
+  border-radius: 8px;
+  text-decoration: none;
+  font-size: 14px;
+  transition: background 0.2s ease, transform 0.15s ease;
+}
+
+.btn:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.btn.secondary {
+  background: #111827;
+  margin-left: 10px;
+}
+
+.btn.secondary:hover {
+  background: #000;
+}
+
+/* ===== OTHER OFFERS ===== */
+.other-offers {
+  margin-top: 12px;
+}
+
+.other-offers summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* ===== ERROR / EMPTY ===== */
+.error-box {
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 10px 14px;
+  border-radius: 8px;
+}
+
+.no-results {
+  margin-top: 20px;
+  color: #6b7280;
+}
