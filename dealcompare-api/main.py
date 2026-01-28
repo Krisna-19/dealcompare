@@ -177,6 +177,28 @@ def suggest(query: str):
     # remove duplicates, keep order
     return list(dict.fromkeys(suggestions))[:5]
 
+from fastapi.responses import RedirectResponse
+from urllib.parse import urlencode
+
+# simple in-memory counter (ok for MVP)
+CLICK_COUNTS = {
+    "amazon": 0
+}
+
+@app.get("/track/amazon")
+def track_amazon_click(query: str):
+    CLICK_COUNTS["amazon"] += 1
+    print(f"Amazon clicks: {CLICK_COUNTS['amazon']}")
+
+    amazon_url = build_amazon_search_link(query)
+    return RedirectResponse(url=amazon_url)
+
+@app.get("/stats")
+def stats():
+    return CLICK_COUNTS
+
+
+
 # ---------- RUN ----------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
