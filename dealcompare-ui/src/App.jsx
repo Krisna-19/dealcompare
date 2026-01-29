@@ -19,41 +19,38 @@ function App() {
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-  /* 🔍 SEARCH API */
+  /* 🔍 SEARCH */
   const searchDeals = async () => {
-  try {
-    setLoading(true);
-    setError("");
+    try {
+      setLoading(true);
+      setError("");
 
       const res = await fetch(
-      `${API_BASE_URL}/search?query=${encodeURIComponent(query)}`
-    );
+        `${API_BASE_URL}/search?query=${encodeURIComponent(query)}`
+      );
 
-    if (!res.ok) {
-      throw new Error("API error");
+      if (!res.ok) {
+        throw new Error("API error");
+      }
+
+      const data = await res.json();
+
+      if (data.results && data.results.length > 0) {
+        setResults(data.results);
+        setError("");
+      } else {
+        setResults([]);
+        setError("No deals found");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Failed to fetch deals");
+    } finally {
+      setLoading(false);
     }
+  };
 
-    const data = await res.json();
-
-    // ✅ FIXED LOGIC
-    if (data.results && data.results.length > 0) {
-      setResults(data.results);
-      setError(""); // 🔴 clear previous error
-    } else {
-      setResults([]);
-      setError("No deals found");
-    }
-
-  } catch (err) {
-    console.error(err);
-    setError("Failed to fetch deals");
-  } finally {
-    setLoading(false);
-  }
-};
-
-
-  /* 💡 AUTOSUGGEST INPUT HANDLER */
+  /* 🔍 AUTOSUGGEST */
   const handleInput = async (value) => {
     setQuery(value);
 
@@ -68,7 +65,6 @@ function App() {
         `${API_BASE_URL}/suggest?query=${encodeURIComponent(value)}`
       );
       const data = await res.json();
-
       setSuggestions(data);
       setShowSuggestions(true);
     } catch (err) {
@@ -76,7 +72,7 @@ function App() {
     }
   };
 
-  /* 🔃 SORT */
+  /* 🔀 SORT */
   useEffect(() => {
     if (results.length === 0) return;
 
@@ -84,12 +80,8 @@ function App() {
 
     if (sortOrder === "low") {
       sorted.sort((a, b) => {
-        const priceA = parseInt(
-          a.best_deal.price.replace("₹", "").replace(",", "")
-        );
-        const priceB = parseInt(
-          b.best_deal.price.replace("₹", "").replace(",", "")
-        );
+        const priceA = parseInt(a.best_deal.price.replace("₹", "").replace(",", ""));
+        const priceB = parseInt(b.best_deal.price.replace("₹", "").replace(",", ""));
         return priceA - priceB;
       });
     }
@@ -107,10 +99,10 @@ function App() {
 
   return (
     <div className="container">
-      <h1 className="title">DealCompare 🔍</h1>
-      <p className="subtitle">Compare prices across Amazon & Flipkart</p>
+      <h1 className="title">DealCompare 🔥</h1>
+      <p className="subtitle">Compare prices across multiple platforms</p>
 
-      {/* 🔎 SEARCH BOX */}
+      {/* 🔍 SEARCH BOX */}
       <div className="search-box">
         <input
           autoFocus
@@ -126,7 +118,6 @@ function App() {
         />
 
         <button onClick={searchDeals} disabled={loading || !query.trim()}>
-          {loading && <span className="spinner"></span>}
           {loading ? "Searching..." : "Search"}
         </button>
 
@@ -148,17 +139,17 @@ function App() {
         )}
       </div>
 
-      {/* 🔃 SORT */}
+      {/* 🔀 SORT */}
       <div className="sort-box">
-        <label>Sort by (default: Smart Score):</label>
+        <label>Sort by:</label>
         <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)}>
-          <option value="low">💰 Price: Low → High</option>
-          <option value="rating">⭐ Rating: High → Low</option>
-          <option value="score">🧠 Smart Score</option>
+          <option value="score">Smart Score</option>
+          <option value="low">Price: Low → High</option>
+          <option value="rating">Rating: High → Low</option>
         </select>
       </div>
 
-      {/* ⏳ LOADER */}
+      {/* 🔄 LOADER */}
       {loading && (
         <div className="loader">
           <div className="spinner"></div>
@@ -169,14 +160,14 @@ function App() {
       {/* ❌ ERROR */}
       {error && <div className="error-box">⚠️ {error}</div>}
 
-      {/* 😕 NO RESULTS */}
+      {/* 📭 NO RESULTS */}
       {!loading && results.length === 0 && query && !error && (
         <div className="no-results">
-          😕 No deals found for <b>{query}</b>
+          No deals found for <b>{query}</b>
         </div>
       )}
 
-      {/* 🧾 RESULTS */}
+      {/* 🟢 RESULTS */}
       <div className="results">
         {results.map((item, i) => (
           <div className="card" key={i}>
@@ -185,28 +176,26 @@ function App() {
               <span className="badge best">BEST DEAL</span>
             </div>
 
-            <p>
-              <b>Brand:</b> {item.brand}
-            </p>
+            <p><b>Brand:</b> {item.brand}</p>
 
             <div className="best-deal">
               <p>
-                <b>Price:</b> {item.best_deal.price}
-                <br />
-                <b>Platform:</b> {item.best_deal.platform}
-                <br />
+                <b>Price:</b> {item.best_deal.price}<br />
+                <b>Platform:</b> {item.best_deal.platform}<br />
                 <b>Rating:</b> ⭐ {item.best_deal.rating}
               </p>
 
+              {/* ✅ DIRECT LINK */}
               <a
                 href={item.best_deal.product_url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn"
               >
-                View Best Deal →
+                Visit {item.best_deal.platform} →
               </a>
 
+              {/* ✅ AMAZON DIRECT LINK */}
               {item.amazon_affiliate_url && (
                 <a
                   href={item.amazon_affiliate_url}
@@ -225,16 +214,27 @@ function App() {
                 <ul>
                   {item.other_offers.map((offer, idx) => (
                     <li key={idx}>
-                      {offer.platform} – {offer.price} (⭐ {offer.rating})
+                      {offer.platform} – {offer.price} (⭐ {offer.rating}){" "}
+                      <a
+                        href={offer.product_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Visit →
+                      </a>
                     </li>
                   ))}
                 </ul>
               </details>
             )}
           </div>
-
         ))}
       </div>
+
+      {/* ✅ AMAZON COMPLIANCE */}
+      <p style={{ fontSize: "12px", color: "#6b7280", marginTop: "40px" }}>
+        As an Amazon Associate, we earn from qualifying purchases.
+      </p>
     </div>
   );
 }
