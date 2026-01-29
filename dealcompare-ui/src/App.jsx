@@ -169,66 +169,31 @@ function App() {
 
       {/* 🟢 RESULTS */}
       <div className="results">
-        {results.map((item, i) => (
-          <div className="card" key={i}>
-            <div className="card-header">
-              <h3>{item.product_name}</h3>
-              <span className="badge best">BEST DEAL</span>
-            </div>
+        {results.flatMap((item, i) => {
+  const allOffers = [
+    item.best_deal,
+    ...(item.other_offers || [])
+  ];
 
-            <p><b>Brand:</b> {item.brand}</p>
+  return allOffers.map((offer, idx) => (
+    <div className="card" key={`${i}-${idx}`}>
+      <h3>{item.product_name}</h3>
 
-            <div className="best-deal">
-              <p>
-                <b>Price:</b> {item.best_deal.price}<br />
-                <b>Platform:</b> {item.best_deal.platform}<br />
-                <b>Rating:</b> ⭐ {item.best_deal.rating}
-              </p>
+      <p><b>Platform:</b> {offer.platform}</p>
+      <p><b>Price:</b> {offer.price}</p>
+      <p><b>Rating:</b> ⭐ {offer.rating}</p>
 
-              {/* ✅ DIRECT LINK */}
-              <a
-                href={item.best_deal.product_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn"
-              >
-                Visit {item.best_deal.platform} →
-              </a>
-
-              {/* ✅ AMAZON DIRECT LINK */}
-              {item.amazon_affiliate_url && (
-                <a
-                  href={item.amazon_affiliate_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn secondary"
-                >
-                  View on Amazon →
-                </a>
-              )}
-            </div>
-
-            {item.other_offers && item.other_offers.length > 0 && (
-              <details className="other-offers">
-                <summary>Other offers</summary>
-                <ul>
-                  {item.other_offers.map((offer, idx) => (
-                    <li key={idx}>
-                      {offer.platform} – {offer.price} (⭐ {offer.rating}){" "}
-                      <a
-                        href={offer.product_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        Visit →
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
-          </div>
-        ))}
+      <a
+        href={offer.product_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="btn"
+      >
+        Visit {offer.platform} →
+      </a>
+    </div>
+  ));
+})}
       </div>
 
       {/* ✅ AMAZON COMPLIANCE */}
