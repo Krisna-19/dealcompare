@@ -1,25 +1,54 @@
-import re
 import os
-import uvicorn
-from seed_data import SEED_PRODUCTS
 import time
-from fastapi import FastAPI, Query
-from fastapi.middleware.cors import CORSMiddleware
-from typing import Optional
-from scrapers.flipkart import scrape_flipkart
-from scrapers.myntra import scrape_myntra
-from scoring import calculate_score
-from affiliates.amazon_links import build_amazon_search_link
+import re
 import sys
 from difflib import SequenceMatcher
+from typing import Optional
+
+import uvicorn
+from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
+
+from scrapers.flipkart import scrape_flipkart
+from scrapers.myntra import scrape_myntra
+from affiliates.amazon_links import build_amazon_search_link
+
+# --------------------------------------------------
+# App setup
+# --------------------------------------------------
+
+app = FastAPI(title="DealCompare API")
+
+CACHE = {}
+CACHE_TTL = 300  # 5 minutes
+
+# --------------------------------------------------
+# CORS
+# --------------------------------------------------
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# --------------------------------------------------
+# Helpers
+# --------------------------------------------------
 
 def similarity(a: str, b: str) -> float:
     return SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
 def pick_best_product(products: list, query: str):
     """
-    From a list of scraped products, return ONE best matching product
-    based on name similarity.
+    Pick ONE best matching product from a website
     """
     if not products:
         return None
@@ -31,75 +60,18 @@ def pick_best_product(products: list, query: str):
         scored.append((score, p))
 
     scored.sort(reverse=True, key=lambda x: x[0])
-    return scored[0][1]  # best match
+    return scored[0][1]
 
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-if BASE_DIR not in sys.path:
-    sys.path.insert(0, BASE_DIR)
-
-
-
-app = FastAPI(title="DealCompare API")
-CACHE = {}
-CACHE_TTL = 300  # seconds (5 minutes)
-
-# ---------- CORS ----------
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174",   # 🔥 ADD THIS
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",   # 🔥 ADD THIS
-        "http://127.0.0.1:8000",
-        "https://dealcompare.pages.dev",
-        "https://dealcompare.in",
-        "https://www.dealcompare.in",
-    ],
-    allow_origin_regex=r"https://.*\.pages\.dev",
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# ---------- DATA ----------
-PRODUCTS = [
-    {
-        "id": 5,
-        "name": "Levi's Men's Printed T-Shirt",
-        "brand": "Levi's",
-        "category": "Fashion",
-        "price": "₹899",
-        "platform": "Myntra",
-        "rating": 4.3,
-        "delivery_days": 3,
-        "product_url": "https://myntra.com/levis-tshirt",
-    },
-    {
-        "id": 6,
-        "name": "Levi's Men's Printed T-Shirt",
-        "brand": "Levi's",
-        "category": "Fashion",
-        "price": "₹949",
-        "platform": "Ajio",
-        "rating": 4.2,
-        "delivery_days": 4,
-        "product_url": "https://ajio.com/levis-tshirt",
-    },
-]
-
-# ---------- HELPERS ----------
-def normalize(text: str) -> str:
-    return re.sub(r"[^a-z0-9]", "", text.lower()) if text else ""
-
-def price_value(product: dict) -> int:
+def parse_price(price: str) -> int:
     try:
-        return int(product["price"].replace("₹", "").replace(",", ""))
-    except Exception:
+        return int(price.replace("₹", "").replace(",", ""))
+    except:
         return 0
 
-# ---------- ROUTES ----------
+# --------------------------------------------------
+# Routes
+# --------------------------------------------------
+
 @app.get("/")
 def root():
     return {"status": "DealCompare API running"}
@@ -108,54 +80,48 @@ def root():
 def health():
     return {"status": "healthy"}
 
-
 @app.get("/search")
 def search(query: Optional[str] = Query(None)):
     if not query:
         return {"message": "No query", "results": []}
 
-    q = query.lower().strip()
+    q = query.strip()
     now = time.time()
 
-    # 1️⃣ Return cached result if exists
+    # 1️⃣ Cache
     if q in CACHE and now - CACHE[q]["time"] < CACHE_TTL:
         return CACHE[q]["data"]
 
-    
+    offers = []
 
-    # 3️⃣ If scraping FAILED → use seed data
-    if not products:
-        seed_key = q.replace(" ", "")
-        if seed_key in SEED_PRODUCTS:
-            products = SEED_PRODUCTS[seed_key]
-        else:
-            return {"message": "No deals found", "results": []}
+    # 2️⃣ Myntra
+    try:
+        myntra_products = scrape_myntra(q)
+        best_myntra = pick_best_product(myntra_products, q)
+        if best_myntra:
+            best_myntra["platform"] = "Myntra"
+            best_myntra["price_value"] = parse_price(best_myntra["price"])
+            offers.append(best_myntra)
+    except Exception as e:
+        print("Myntra error:", e)
 
-    # 4️⃣ Price parsing + scoring
-    valid = []
-    for p in products:
-        try:
-            p["price_value"] = int(p["price"].replace("₹", "").replace(",", ""))
-            valid.append(p)
-        except:
-            continue
+    # 3️⃣ Flipkart
+    try:
+        flipkart_products = scrape_flipkart(q)
+        best_flipkart = pick_best_product(flipkart_products, q)
+        if best_flipkart:
+            best_flipkart["platform"] = "Flipkart"
+            best_flipkart["price_value"] = parse_price(best_flipkart["price"])
+            offers.append(best_flipkart)
+    except Exception as e:
+        print("Flipkart error:", e)
 
-    min_price = min(p["price_value"] for p in valid)
-    min_delivery = min(p.get("delivery_days", 4) for p in valid)
+    if not offers:
+        return {"message": "No deals found", "results": []}
 
-    for p in valid:
-        p["score"] = round(
-            (p.get("rating", 3.5) / 5) * 0.4 +
-            (min_price / p["price_value"]) * 0.4 +
-            (min_delivery / p.get("delivery_days", 4)) * 0.2,
-            3
-        )
-
-    best = max(valid, key=lambda x: x["score"])
-    others = [p for p in valid if p is not best]
-
-    # ✅ BUILD AMAZON AFFILIATE LINK HERE (CORRECT PLACE)
-    amazon_url = build_amazon_search_link(query)
+    # 4️⃣ Best price wins
+    best = min(offers, key=lambda x: x["price_value"])
+    others = [p for p in offers if p is not best]
 
     response = {
         "message": "Found best deal",
@@ -164,11 +130,10 @@ def search(query: Optional[str] = Query(None)):
             "brand": "N/A",
             "best_deal": best,
             "other_offers": others,
-            "amazon_affiliate_url": amazon_url
+            "amazon_affiliate_url": build_amazon_search_link(q)
         }]
     }
 
-    # 5️⃣ Cache response
     CACHE[q] = {
         "time": now,
         "data": response
@@ -176,42 +141,10 @@ def search(query: Optional[str] = Query(None)):
 
     return response
 
+# --------------------------------------------------
+# Run
+# --------------------------------------------------
 
-@app.get("/suggest")
-def suggest(query: str):
-    q = normalize(query)
-    suggestions = []
-
-    for p in PRODUCTS:
-        if q in normalize(p["name"]):
-            suggestions.append(p["name"])
-
-    # remove duplicates, keep order
-    return list(dict.fromkeys(suggestions))[:5]
-
-from fastapi.responses import RedirectResponse
-from urllib.parse import urlencode
-
-# simple in-memory counter (ok for MVP)
-CLICK_COUNTS = {
-    "amazon": 0
-}
-
-@app.get("/track/amazon")
-def track_amazon_click(query: str):
-    CLICK_COUNTS["amazon"] += 1
-    print(f"Amazon clicks: {CLICK_COUNTS['amazon']}")
-
-    amazon_url = build_amazon_search_link(query)
-    return RedirectResponse(url=amazon_url)
-
-@app.get("/stats")
-def stats():
-    return CLICK_COUNTS
-
-
-
-# ---------- RUN ----------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
