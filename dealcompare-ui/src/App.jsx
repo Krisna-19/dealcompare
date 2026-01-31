@@ -26,8 +26,9 @@ function App() {
       setError("");
 
       const res = await fetch(
-        `${API_BASE_URL}/search?query=${encodeURIComponent(query)}`
+        `${API_BASE_URL}/search?query=${encodeURIComponent(query)}`    
       );
+      console.log("API URL:", API_BASE_URL);
 
       if (!res.ok) {
         throw new Error("API error");
