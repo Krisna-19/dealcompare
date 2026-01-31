@@ -132,6 +132,13 @@ def search(query: Optional[str] = Query(None)):
             offers.append(best_flipkart)
     except Exception as e:
         print("Flipkart error:", e)
+    print("Query:", q)
+
+    myntra_products = scrape_myntra(q)
+    print("Myntra products:", myntra_products)
+
+    flipkart_products = scrape_flipkart(q)
+    print("Flipkart products:", flipkart_products)    
 
     if not offers:
         return {"message": "No deals found", "results": []}
@@ -157,6 +164,7 @@ def search(query: Optional[str] = Query(None)):
     }
 
     return response
+
 
 # --------------------------------------------------
 # Run
