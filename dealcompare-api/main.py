@@ -38,15 +38,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # --------------------------------------------------
 # Helpers
 # --------------------------------------------------
 
-def similarity(a: str, b: str) -> float:
-    return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+def normalize(text: str) -> str:
+    """
+    Normalize text for better matching:
+    - lowercase
+    - remove special characters
+    """
+    return re.sub(r"[^a-z0-9 ]", "", text.lower())
 
-def pick_best_product(products: list, query: str):
+def similarity(a: str, b: str) -> float:
+    """
+    Compute similarity score between two product names
+    """
+    a = normalize(a)
+    b = normalize(b)
+    return SequenceMatcher(None, a, b).ratio()
+
+def pick_best_product(products: list, query: str, min_score: float = 0.4):
     """
     Pick ONE best matching product from a website
     """
@@ -60,7 +72,12 @@ def pick_best_product(products: list, query: str):
         scored.append((score, p))
 
     scored.sort(reverse=True, key=lambda x: x[0])
-    return scored[0][1]
+    best_score, best_product = scored[0]
+
+    if best_score < min_score:
+        return None
+
+    return best_product
 
 def parse_price(price: str) -> int:
     try:
