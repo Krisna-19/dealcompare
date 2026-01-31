@@ -11,6 +11,28 @@ from scrapers.myntra import scrape_myntra
 from scoring import calculate_score
 from affiliates.amazon_links import build_amazon_search_link
 import sys
+from difflib import SequenceMatcher
+
+def similarity(a: str, b: str) -> float:
+    return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+
+def pick_best_product(products: list, query: str):
+    """
+    From a list of scraped products, return ONE best matching product
+    based on name similarity.
+    """
+    if not products:
+        return None
+
+    scored = []
+    for p in products:
+        name = p.get("name", "")
+        score = similarity(name, query)
+        scored.append((score, p))
+
+    scored.sort(reverse=True, key=lambda x: x[0])
+    return scored[0][1]  # best match
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
@@ -27,6 +49,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
+        "http://localhost:5174",   # 🔥 ADD THIS
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",   # 🔥 ADD THIS
+        "http://127.0.0.1:8000",
         "https://dealcompare.pages.dev",
         "https://dealcompare.in",
         "https://www.dealcompare.in",
@@ -95,21 +121,7 @@ def search(query: Optional[str] = Query(None)):
     if q in CACHE and now - CACHE[q]["time"] < CACHE_TTL:
         return CACHE[q]["data"]
 
-    # 2️⃣ Try real scraping
-    flipkart = []
-    myntra = []
-
-    try:
-        flipkart = scrape_flipkart(q)
-    except:
-        pass
-
-    try:
-        myntra = scrape_myntra(q)
-    except:
-        pass
-
-    products = flipkart + myntra
+    
 
     # 3️⃣ If scraping FAILED → use seed data
     if not products:
