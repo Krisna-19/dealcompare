@@ -169,32 +169,62 @@ function App() {
 
       {/* 🟢 RESULTS */}
       <div className="results">
-        {results.flatMap((item, i) => {
-  const allOffers = [
-    item.best_deal,
-    ...(item.other_offers || [])
-  ];
-
-  return allOffers.map((offer, idx) => (
-    <div className="card" key={`${i}-${idx}`}>
+  {results.map((item, i) => (
+    <div className="card" key={i}>
       <h3>{item.product_name}</h3>
 
-      <p><b>Platform:</b> {offer.platform}</p>
-      <p><b>Price:</b> {offer.price}</p>
-      <p><b>Rating:</b> ⭐ {offer.rating}</p>
+      {/* BEST DEAL */}
+      <div className="offer best">
+        <span>{item.best_deal.platform}</span>
+        <span>{item.best_deal.price}</span>
 
-      <a
-        href={offer.product_url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="btn"
-      >
-        Visit {offer.platform} →
-      </a>
-    </div>
-  ));
-})}
+        <a
+          href={item.best_deal.product_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn"
+        >
+          Visit {item.best_deal.platform}
+        </a>
       </div>
+
+      {/* OTHER OFFERS */}
+      {item.other_offers.map((offer, idx) => (
+        <div className="offer" key={idx}>
+          <span>{offer.platform}</span>
+          <span>{offer.price}</span>
+
+          <a
+            href={offer.product_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn secondary"
+          >
+            Visit {offer.platform}
+          </a>
+        </div>
+      ))}
+
+      {/* AMAZON (OPTIONAL) */}
+      {item.amazon_affiliate_url && (
+        <div className="offer">
+          <span>Amazon</span>
+          <span>Check price</span>
+
+          <a
+            href={item.amazon_affiliate_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn secondary"
+          >
+            Visit Amazon
+          </a>
+        </div>
+      )}
+    </div>
+  ))}
+</div>
+
 
       {/* ✅ AMAZON COMPLIANCE */}
       <p style={{ fontSize: "12px", color: "#6b7280", marginTop: "40px" }}>
