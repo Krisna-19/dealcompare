@@ -12,6 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from scrapers.flipkart import scrape_flipkart
 from scrapers.myntra import scrape_myntra
 from affiliates.amazon_links import build_amazon_search_link
+from seed_data import SEED_PRODUCTS
+
 
 # --------------------------------------------------
 # App setup
@@ -106,54 +108,45 @@ def search(query: Optional[str] = Query(None)):
         return {"message": "No query", "results": []}
 
     q = query.strip()
-    now = time.time()
-
-    # 1️⃣ Cache
-    if q in CACHE and now - CACHE[q]["time"] < CACHE_TTL:
-        return CACHE[q]["data"]
-
+    scrape_q = simplify_query(q)
     offers = []
 
-    # 🔹 Simplify query ONCE
-    scrape_q = simplify_query(q)
-    print("Scrape query:", scrape_q)
-
-    # ------------------ MYNTRA ------------------
+    # ---- SCRAPING ----
     try:
         myntra_products = scrape_myntra(scrape_q)
-        print("Myntra products:", myntra_products)
-
         best_myntra = pick_best_product(myntra_products, q)
         if best_myntra:
             best_myntra["platform"] = "Myntra"
             best_myntra["price_value"] = parse_price(best_myntra["price"])
             offers.append(best_myntra)
-    except Exception as e:
-        print("Myntra error:", e)
+    except:
+        pass
 
-    # ------------------ FLIPKART ------------------
     try:
         flipkart_products = scrape_flipkart(scrape_q)
-        print("Flipkart products:", flipkart_products)
-
         best_flipkart = pick_best_product(flipkart_products, q)
         if best_flipkart:
             best_flipkart["platform"] = "Flipkart"
             best_flipkart["price_value"] = parse_price(best_flipkart["price"])
             offers.append(best_flipkart)
-    except Exception as e:
-        print("Flipkart error:", e)
+    except:
+        pass
 
-    # ------------------ NO RESULTS ------------------
+    # ✅ ADD FALLBACK HERE
+    if not offers:
+        key = normalize(q).replace(" ", "")
+        if key in SEED_PRODUCTS:
+            offers = SEED_PRODUCTS[key]
+
+    # ❌ ONLY NOW decide "No deals found"
     if not offers:
         return {"message": "No deals found", "results": []}
 
-
-    # 4️⃣ Best price wins
+    # ---- BUILD RESPONSE ----
     best = min(offers, key=lambda x: x["price_value"])
     others = [p for p in offers if p is not best]
 
-    response = {
+    return {
         "message": "Found best deal",
         "results": [{
             "product_name": best["name"],
@@ -163,6 +156,7 @@ def search(query: Optional[str] = Query(None)):
             "amazon_affiliate_url": build_amazon_search_link(q)
         }]
     }
+
 
     CACHE[q] = {
         "time": now,
