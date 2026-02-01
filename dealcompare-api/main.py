@@ -88,6 +88,9 @@ def parse_price(price: str) -> int:
 # --------------------------------------------------
 # Routes
 # --------------------------------------------------
+def simplify_query(query: str) -> str:
+    words = normalize(query).split()
+    return " ".join(words[:3])  # take first 2–3 keywords
 
 @app.get("/")
 def root():
@@ -134,9 +137,13 @@ def search(query: Optional[str] = Query(None)):
         print("Flipkart error:", e)
     print("Query:", q)
 
-    myntra_products = scrape_myntra(q)
+    scrape_q = simplify_query(q)
+    myntra_products = scrape_myntra(scrape_q)
+
+
     print("Myntra products:", myntra_products)
 
+    scrape_q = simplify_query(q)
     flipkart_products = scrape_flipkart(q)
     print("Flipkart products:", flipkart_products)    
 
