@@ -35,6 +35,14 @@ app.add_middleware(
 # ==================================================
 # HELPERS
 # ==================================================
+def build_myntra_search_link(query: str) -> str:
+    q = query.replace(" ", "+")
+    return f"https://www.myntra.com/search?q={q}"
+
+def build_ajio_search_link(query: str) -> str:
+    q = query.replace(" ", "+")
+    return f"https://www.ajio.com/search/?text={q}"
+
 
 STOP_WORDS = {
     "for", "with", "and", "or", "of", "the",
@@ -170,6 +178,25 @@ def search(query: Optional[str] = Query(None)):
 
     if not offers:
         return {"message": "No deals found", "results": []}
+    
+    # --------------------------------------------------
+    # 🔁 FIX URLs: force search links if homepage URLs
+    # --------------------------------------------------
+    for p in offers:
+        url = p.get("product_url", "")
+
+        # Myntra homepage → search
+        if p.get("platform") == "Myntra" and (
+            url == "https://www.myntra.com" or url.endswith(".com")
+        ):
+            p["product_url"] = build_myntra_search_link(q)
+
+        # Ajio homepage → search
+        if p.get("platform") == "Ajio" and (
+            url == "https://www.ajio.com" or url.endswith(".com")
+        ):
+            p["product_url"] = build_ajio_search_link(q)
+
 
     # ---------- BEST DEAL ----------
     best = min(offers, key=lambda x: x["price_value"])
