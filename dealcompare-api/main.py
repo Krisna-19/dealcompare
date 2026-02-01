@@ -134,9 +134,12 @@ def search(query: Optional[str] = Query(None)):
 
     # ✅ ADD FALLBACK HERE
     if not offers:
-        key = normalize(q).replace(" ", "")
-        if key in SEED_PRODUCTS:
-            offers = SEED_PRODUCTS[key]
+        norm_q = normalize(q)
+
+        for k, v in SEED_PRODUCTS.items():
+            if k in norm_q:
+                offers = v
+                break
 
     # ❌ ONLY NOW decide "No deals found"
     if not offers:
