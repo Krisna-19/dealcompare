@@ -1,7 +1,5 @@
 import os
-import time
 import re
-import sys
 from difflib import SequenceMatcher
 from typing import Optional
 
@@ -21,9 +19,6 @@ from seed_data import SEED_PRODUCTS
 
 app = FastAPI(title="DealCompare API")
 
-CACHE = {}
-CACHE_TTL = 300  # 5 minutes
-
 # --------------------------------------------------
 # CORS
 # --------------------------------------------------
@@ -40,46 +35,34 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 # --------------------------------------------------
 # Helpers
 # --------------------------------------------------
 
 def normalize(text: str) -> str:
-    """
-    Normalize text for better matching:
-    - lowercase
-    - remove special characters
-    """
     return re.sub(r"[^a-z0-9 ]", "", text.lower())
 
+def simplify_query(query: str) -> str:
+    words = normalize(query).split()
+    return " ".join(words[:3])
+
 def similarity(a: str, b: str) -> float:
-    """
-    Compute similarity score between two product names
-    """
-    a = normalize(a)
-    b = normalize(b)
-    return SequenceMatcher(None, a, b).ratio()
+    return SequenceMatcher(None, normalize(a), normalize(b)).ratio()
 
 def pick_best_product(products: list, query: str, min_score: float = 0.4):
-    """
-    Pick ONE best matching product from a website
-    """
     if not products:
         return None
 
     scored = []
     for p in products:
-        name = p.get("name", "")
-        score = similarity(name, query)
+        score = similarity(p.get("name", ""), query)
         scored.append((score, p))
 
     scored.sort(reverse=True, key=lambda x: x[0])
     best_score, best_product = scored[0]
 
-    if best_score < min_score:
-        return None
-
-    return best_product
+    return best_product if best_score >= min_score else None
 
 def parse_price(price: str) -> int:
     try:
@@ -87,12 +70,16 @@ def parse_price(price: str) -> int:
     except:
         return 0
 
+def ensure_price_value(products: list):
+    for p in products:
+        if "price_value" not in p:
+            p["price_value"] = parse_price(p.get("price", "0"))
+    return products
+
+
 # --------------------------------------------------
 # Routes
 # --------------------------------------------------
-def simplify_query(query: str) -> str:
-    words = normalize(query).split()
-    return " ".join(words[:3])  # take first 2–3 keywords
 
 @app.get("/")
 def root():
@@ -111,41 +98,40 @@ def search(query: Optional[str] = Query(None)):
     scrape_q = simplify_query(q)
     offers = []
 
-    # ---- SCRAPING ----
+    # ---------- MYNTRA ----------
     try:
         myntra_products = scrape_myntra(scrape_q)
-        best_myntra = pick_best_product(myntra_products, q)
-        if best_myntra:
-            best_myntra["platform"] = "Myntra"
-            best_myntra["price_value"] = parse_price(best_myntra["price"])
-            offers.append(best_myntra)
-    except:
-        pass
+        best = pick_best_product(myntra_products, q)
+        if best:
+            best["platform"] = "Myntra"
+            best["price_value"] = parse_price(best.get("price", "0"))
+            offers.append(best)
+    except Exception as e:
+        print("Myntra error:", e)
 
+    # ---------- FLIPKART ----------
     try:
         flipkart_products = scrape_flipkart(scrape_q)
-        best_flipkart = pick_best_product(flipkart_products, q)
-        if best_flipkart:
-            best_flipkart["platform"] = "Flipkart"
-            best_flipkart["price_value"] = parse_price(best_flipkart["price"])
-            offers.append(best_flipkart)
-    except:
-        pass
+        best = pick_best_product(flipkart_products, q)
+        if best:
+            best["platform"] = "Flipkart"
+            best["price_value"] = parse_price(best.get("price", "0"))
+            offers.append(best)
+    except Exception as e:
+        print("Flipkart error:", e)
 
-    # ✅ ADD FALLBACK HERE
+    # ---------- SEED FALLBACK ----------
     if not offers:
         norm_q = normalize(q)
-
         for k, v in SEED_PRODUCTS.items():
             if k in norm_q:
-                offers = v
+                offers = ensure_price_value(v)
                 break
 
-    # ❌ ONLY NOW decide "No deals found"
     if not offers:
         return {"message": "No deals found", "results": []}
 
-    # ---- BUILD RESPONSE ----
+    # ---------- BEST DEAL ----------
     best = min(offers, key=lambda x: x["price_value"])
     others = [p for p in offers if p is not best]
 
@@ -161,18 +147,9 @@ def search(query: Optional[str] = Query(None)):
     }
 
 
-    CACHE[q] = {
-        "time": now,
-        "data": response
-    }
-
-    return response
-
-
 # --------------------------------------------------
 # Run
 # --------------------------------------------------
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("main:app", host="0.0.0.0", port=port)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000)
