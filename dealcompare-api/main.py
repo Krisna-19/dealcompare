@@ -114,9 +114,15 @@ def search(query: Optional[str] = Query(None)):
 
     offers = []
 
-    # 2️⃣ Myntra
+    # 🔹 Simplify query ONCE
+    scrape_q = simplify_query(q)
+    print("Scrape query:", scrape_q)
+
+    # ------------------ MYNTRA ------------------
     try:
-        myntra_products = scrape_myntra(q)
+        myntra_products = scrape_myntra(scrape_q)
+        print("Myntra products:", myntra_products)
+
         best_myntra = pick_best_product(myntra_products, q)
         if best_myntra:
             best_myntra["platform"] = "Myntra"
@@ -125,9 +131,11 @@ def search(query: Optional[str] = Query(None)):
     except Exception as e:
         print("Myntra error:", e)
 
-    # 3️⃣ Flipkart
+    # ------------------ FLIPKART ------------------
     try:
-        flipkart_products = scrape_flipkart(q)
+        flipkart_products = scrape_flipkart(scrape_q)
+        print("Flipkart products:", flipkart_products)
+
         best_flipkart = pick_best_product(flipkart_products, q)
         if best_flipkart:
             best_flipkart["platform"] = "Flipkart"
@@ -135,20 +143,11 @@ def search(query: Optional[str] = Query(None)):
             offers.append(best_flipkart)
     except Exception as e:
         print("Flipkart error:", e)
-    print("Query:", q)
 
-    scrape_q = simplify_query(q)
-    myntra_products = scrape_myntra(scrape_q)
-
-
-    print("Myntra products:", myntra_products)
-
-    scrape_q = simplify_query(q)
-    flipkart_products = scrape_flipkart(q)
-    print("Flipkart products:", flipkart_products)    
-
+    # ------------------ NO RESULTS ------------------
     if not offers:
         return {"message": "No deals found", "results": []}
+
 
     # 4️⃣ Best price wins
     best = min(offers, key=lambda x: x["price_value"])
