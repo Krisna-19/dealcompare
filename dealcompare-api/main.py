@@ -40,29 +40,81 @@ app.add_middleware(
 # Helpers
 # --------------------------------------------------
 
-def normalize(text: str) -> str:
-    return re.sub(r"[^a-z0-9 ]", "", text.lower())
+STOP_WORDS = {
+    "for", "with", "and", "or", "of", "the",
+    "men", "mens", "women", "womens",
+    "tshirt", "t-shirt", "shirt"
+}
+
+def normalize(text: str) -> list[str]:
+    text = re.sub(r"[^a-z0-9 ]", "", text.lower())
+    words = text.split()
+    return [w for w in words if w not in STOP_WORDS]
+
 
 def simplify_query(query: str) -> str:
     words = normalize(query).split()
     return " ".join(words[:3])
 
-def similarity(a: str, b: str) -> float:
-    return SequenceMatcher(None, normalize(a), normalize(b)).ratio()
+def smart_match_score(product_name: str, query: str) -> float:
+    q_words = set(normalize(query))
+    p_words = set(normalize(product_name))
 
-def pick_best_product(products: list, query: str, min_score: float = 0.4):
-    if not products:
+    if not q_words or not p_words:
+        return 0
+
+    # 🔹 keyword overlap
+    overlap = len(q_words & p_words) / len(q_words)
+
+    # 🔹 name similarity
+    name_score = SequenceMatcher(
+        None,
+        " ".join(q_words),
+        " ".join(p_words)
+    ).ratio()
+
+    # 🔹 brand boost
+    q_brand = extract_brand(query)
+    p_brand = extract_brand(product_name)
+
+    brand_boost = 0.2 if q_brand and q_brand == p_brand else 0
+
+    # 🔹 final weighted score
+    return round(
+        (overlap * 0.5) +
+        (name_score * 0.3) +
+        brand_boost,
+        3
+    )
+
+
+def extract_brand(text: str) -> str | None:
+    known_brands = ["levis", "nike", "adidas", "puma", "roadster"]
+    text = text.lower()
+    for b in known_brands:
+        if b in text:
+            return b
+    return None
+
+def pick_best_product(products: list, query: str, min_score: float = 0.55):
+    best = None
+    best_score = 0
+
+    for p in products:
+        score = smart_match_score(p.get("name", ""), query)
+
+        if score > best_score:
+            best = p
+            best_score = score
+        print("MATCH:", p["name"], score)
+    
+
+    if best_score < min_score:
         return None
 
-    scored = []
-    for p in products:
-        score = similarity(p.get("name", ""), query)
-        scored.append((score, p))
+    best["match_score"] = best_score
+    return best
 
-    scored.sort(reverse=True, key=lambda x: x[0])
-    best_score, best_product = scored[0]
-
-    return best_product if best_score >= min_score else None
 
 def parse_price(price: str) -> int:
     try:
