@@ -454,3 +454,22 @@ body {
   margin-top: 20px;
   color: #6b7280;
 }
+.page {
+  max-width: 800px;
+  margin: 40px auto;
+  padding: 20px;
+  line-height: 1.6;
+}
+
+.footer {
+  margin-top: 50px;
+  text-align: center;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.footer a {
+  margin: 0 6px;
+  color: #2563eb;
+  text-decoration: none;
+}
