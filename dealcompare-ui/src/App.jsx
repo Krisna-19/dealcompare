@@ -173,6 +173,12 @@ function App() {
       <p style={{ fontSize: "12px", color: "#6b7280", marginTop: "40px" }}>
         As an Amazon Associate, we earn from qualifying purchases.
       </p>
+      <footer className="footer">
+        <a href="/privacy">Privacy Policy</a> ·
+        <a href="/terms">Terms & Conditions</a> ·
+        <a href="/affiliate-disclosure">Affiliate Disclosure</a>
+      </footer>
+
     </div>
   );
 }
