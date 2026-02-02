@@ -4,22 +4,23 @@ export default function Terms() {
       <h1>Terms & Conditions</h1>
 
       <p>
-        DealCompare provides price comparison information for products available
-        on third-party e-commerce platforms.
+        DealCompare is a price comparison platform that helps users compare product
+        prices across multiple third-party e-commerce websites.
       </p>
 
       <p>
-        Prices, availability, and offers may change at any time on the seller’s
-        website. We do not guarantee accuracy.
+        We do not sell products directly. All purchases are completed on external
+        websites. DealCompare is not responsible for pricing changes, product
+        availability, delivery, returns, warranties, or customer support.
       </p>
 
       <p>
-        Users are redirected to external websites to complete purchases. We are
-        not responsible for transactions, delivery, or returns.
+        Prices and offers shown on DealCompare are for informational purposes only
+        and may change at any time without notice.
       </p>
 
       <p>
-        By using this website, you agree to these Terms & Conditions.
+        By accessing and using this website, you agree to these Terms & Conditions.
       </p>
     </div>
   );

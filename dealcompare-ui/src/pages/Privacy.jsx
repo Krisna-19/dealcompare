@@ -4,22 +4,28 @@ export default function Privacy() {
       <h1>Privacy Policy</h1>
 
       <p>
-        We respect your privacy. DealCompare does not collect personal
-        information such as name, email, or payment details.
+        At DealCompare, your privacy is important to us.
       </p>
 
       <p>
-        When you click on product links, you are redirected to third-party
-        websites (Amazon, Myntra, Ajio, Flipkart). We do not control or store
-        any data on those websites.
+        We do not collect, store, or process any personal information such as your
+        name, email address, phone number, or payment details.
       </p>
 
       <p>
-        We may earn a commission through affiliate links at no extra cost to you.
+        DealCompare only displays product price comparisons. When you click on a
+        product link, you are redirected to a third-party e-commerce website such
+        as Amazon, Myntra, Ajio, or Flipkart. Any information you provide on those
+        websites is governed by their respective privacy policies.
       </p>
 
       <p>
-        By using this website, you agree to this Privacy Policy.
+        We may earn a commission through affiliate links at no additional cost to
+        you.
+      </p>
+
+      <p>
+        By using DealCompare, you consent to this Privacy Policy.
       </p>
     </div>
   );
