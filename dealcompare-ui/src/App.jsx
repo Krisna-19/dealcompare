@@ -1,25 +1,30 @@
 import { Outlet } from "react-router-dom";
+import "./App.css";
 
-function App() {
+export default function App() {
   return (
     <div className="container">
-      <h1>DealCompare 🔥</h1>
-      <p>Compare prices across multiple platforms</p>
+      {/* HEADER */}
+      <h1 className="title">
+        DealCompare <span role="img">🔥</span>
+      </h1>
+      <p className="subtitle">
+        Compare prices across multiple platforms
+      </p>
 
-      {/* THIS IS REQUIRED */}
+      {/* PAGE CONTENT (HOME / PRIVACY / TERMS) */}
       <Outlet />
 
+      {/* FOOTER */}
       <footer className="footer">
         <a href="/privacy">Privacy Policy</a> ·
         <a href="/terms">Terms & Conditions</a> ·
         <a href="/affiliate-disclosure">Affiliate Disclosure</a>
 
-        <p style={{ fontSize: "12px", marginTop: "10px" }}>
+        <p className="disclaimer">
           As an Amazon Associate, we earn from qualifying purchases.
         </p>
       </footer>
     </div>
   );
 }
-
-export default App;

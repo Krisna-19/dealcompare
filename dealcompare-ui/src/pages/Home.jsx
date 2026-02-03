@@ -9,7 +9,7 @@ export default function Home() {
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-  /* 🔍 SEARCH */
+  // 🔍 SEARCH
   const searchDeals = async () => {
     if (!query.trim()) return;
 
@@ -39,18 +39,18 @@ export default function Home() {
     }
   };
 
-  /* 🔀 SORT */
+  // 🔀 SORT RESULTS
   useEffect(() => {
     if (results.length === 0) return;
 
     const sorted = [...results];
 
     if (sortOrder === "low") {
-      sorted.sort((a, b) => {
-        const pA = parseInt(a.best_deal.price.replace("₹", "").replace(",", ""));
-        const pB = parseInt(b.best_deal.price.replace("₹", "").replace(",", ""));
-        return pA - pB;
-      });
+      sorted.sort(
+        (a, b) =>
+          parseInt(a.best_deal.price.replace("₹", "").replace(",", "")) -
+          parseInt(b.best_deal.price.replace("₹", "").replace(",", ""))
+      );
     }
 
     if (sortOrder === "rating") {
@@ -99,7 +99,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* 🔄 LOADER */}
+      {/* ⏳ LOADING */}
       {loading && (
         <div className="loader">
           <div className="spinner"></div>
@@ -114,37 +114,52 @@ export default function Home() {
       <div className="results">
         {results.map((item, i) => (
           <div className="card" key={i}>
-            <h3>{item.product_name}</h3>
+            <div className="card-header">
+              <h3>{item.product_name}</h3>
+              <span className="badge best">BEST DEAL</span>
+            </div>
 
             {/* BEST DEAL */}
             <div className="offer best">
-              <span>{item.best_deal.platform}</span>
-              <span>{item.best_deal.price}</span>
+              <p>
+                <b>Price:</b> {item.best_deal.price}
+                <br />
+                <b>Platform:</b> {item.best_deal.platform}
+                <br />
+                <b>Rating:</b> ⭐ {item.best_deal.rating}
+              </p>
+
               <a
                 href={item.best_deal.product_url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn"
               >
-                Visit {item.best_deal.platform}
+                View Best Deal →
               </a>
             </div>
 
             {/* OTHER OFFERS */}
-            {item.other_offers.map((o, idx) => (
-              <div className="offer" key={idx}>
-                <span>{o.platform}</span>
-                <span>{o.price}</span>
-                <a
-                  href={o.product_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn secondary"
-                >
-                  Visit {o.platform}
-                </a>
-              </div>
-            ))}
+            {item.other_offers?.length > 0 && (
+              <details>
+                <summary>Other offers</summary>
+
+                {item.other_offers.map((o, idx) => (
+                  <div className="offer" key={idx}>
+                    <span>{o.platform}</span>
+                    <span>{o.price}</span>
+                    <a
+                      href={o.product_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn secondary"
+                    >
+                      Visit {o.platform}
+                    </a>
+                  </div>
+                ))}
+              </details>
+            )}
 
             {/* AMAZON */}
             {item.amazon_affiliate_url && (
