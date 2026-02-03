@@ -9,12 +9,11 @@ import Affiliate from "./pages/Affiliate";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <BrowserRouter>
-    <Routes>
-      <Route path="/" element={<App />}>
+    <Route path="/" element={<App />}>
+      <Route index element={<Home />} />
       <Route path="privacy" element={<Privacy />} />
       <Route path="terms" element={<Terms />} />
       <Route path="affiliate-disclosure" element={<Affiliate />} />
     </Route>
-    </Routes>
   </BrowserRouter>
 );
