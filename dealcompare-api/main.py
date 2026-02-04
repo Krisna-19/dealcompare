@@ -1,6 +1,8 @@
 import os
 import re
+import time
 from difflib import SequenceMatcher
+from collections import defaultdict
 from typing import Optional
 
 import uvicorn
@@ -11,7 +13,6 @@ from scrapers.flipkart import scrape_flipkart
 from scrapers.myntra import scrape_myntra
 from affiliates.amazon_links import build_amazon_search_link
 from seed_data import SEED_PRODUCTS
-
 
 # ==================================================
 # APP
@@ -32,17 +33,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+CACHE = {}
+CACHE_TTL = 300  # 5 minutes
+
 # ==================================================
 # HELPERS
 # ==================================================
-def build_myntra_search_link(query: str) -> str:
-    q = query.replace(" ", "+")
-    return f"https://www.myntra.com/search?q={q}"
-
-def build_ajio_search_link(query: str) -> str:
-    q = query.replace(" ", "+")
-    return f"https://www.ajio.com/search/?text={q}"
-
 
 STOP_WORDS = {
     "for", "with", "and", "or", "of", "the",
@@ -50,22 +46,20 @@ STOP_WORDS = {
     "tshirt", "t-shirt", "shirt"
 }
 
+BRANDS = ["levis", "nike", "adidas", "puma", "roadster", "apple", "samsung"]
+
 def normalize(text: str) -> str:
-    """Clean text and return string"""
     return re.sub(r"[^a-z0-9 ]", "", text.lower()).strip()
 
 def tokenize(text: str) -> list:
-    """Meaningful tokens only"""
     return [w for w in normalize(text).split() if w not in STOP_WORDS]
 
 def simplify_query(query: str) -> str:
-    words = tokenize(query)
-    return " ".join(words[:3])
+    return " ".join(tokenize(query)[:3])
 
 def extract_brand(text: str):
-    brands = ["levis", "nike", "adidas", "puma", "roadster"]
     t = normalize(text)
-    for b in brands:
+    for b in BRANDS:
         if b in t:
             return b
     return None
@@ -76,11 +70,8 @@ def parse_price(price: str) -> int:
     except:
         return 0
 
-def ensure_price_value(products: list):
-    for p in products:
-        if "price_value" not in p:
-            p["price_value"] = parse_price(p.get("price", "0"))
-    return products
+def similarity(a: str, b: str) -> float:
+    return SequenceMatcher(None, a, b).ratio()
 
 def smart_match_score(product_name: str, query: str) -> float:
     q_words = set(tokenize(query))
@@ -90,40 +81,17 @@ def smart_match_score(product_name: str, query: str) -> float:
         return 0
 
     overlap = len(q_words & p_words) / len(q_words)
+    name_score = similarity(" ".join(q_words), " ".join(p_words))
 
-    name_score = SequenceMatcher(
-        None,
-        " ".join(q_words),
-        " ".join(p_words)
-    ).ratio()
+    brand_boost = 0.2 if extract_brand(query) == extract_brand(product_name) else 0
 
-    brand_boost = 0
-    if extract_brand(query) == extract_brand(product_name):
-        brand_boost = 0.2
+    return round(overlap * 0.5 + name_score * 0.3 + brand_boost, 3)
 
-    return round(
-        overlap * 0.5 +
-        name_score * 0.3 +
-        brand_boost,
-        3
-    )
+def build_myntra_search_link(query: str) -> str:
+    return f"https://www.myntra.com/search?q={query.replace(' ', '+')}"
 
-def pick_best_product(products: list, query: str, min_score: float = 0.55):
-    best = None
-    best_score = 0
-
-    for p in products:
-        score = smart_match_score(p.get("name", ""), query)
-        if score > best_score:
-            best = p
-            best_score = score
-
-    if best_score < min_score:
-        return None
-
-    best["match_score"] = best_score
-    return best
-
+def build_ajio_search_link(query: str) -> str:
+    return f"https://www.ajio.com/search/?text={query.replace(' ', '+')}"
 
 # ==================================================
 # ROUTES
@@ -143,76 +111,87 @@ def search(query: Optional[str] = Query(None)):
         return {"message": "No query", "results": []}
 
     q = query.strip()
+    nq = normalize(q)
+    now = time.time()
+
+    # ---------- CACHE ----------
+    if nq in CACHE and now - CACHE[nq]["time"] < CACHE_TTL:
+        return CACHE[nq]["data"]
+
     scrape_q = simplify_query(q)
-    offers = []
+    all_products = []
 
-    # ---------- MYNTRA ----------
+    # ---------- SCRAPE ----------
     try:
-        myntra_products = scrape_myntra(scrape_q)
-        best = pick_best_product(myntra_products, q)
-        if best:
-            best["platform"] = "Myntra"
-            best["price_value"] = parse_price(best.get("price", "0"))
-            offers.append(best)
-    except Exception as e:
-        print("Myntra error:", e)
+        all_products.extend(scrape_myntra(scrape_q))
+    except:
+        pass
 
-    # ---------- FLIPKART ----------
     try:
-        flipkart_products = scrape_flipkart(scrape_q)
-        best = pick_best_product(flipkart_products, q)
-        if best:
-            best["platform"] = "Flipkart"
-            best["price_value"] = parse_price(best.get("price", "0"))
-            offers.append(best)
-    except Exception as e:
-        print("Flipkart error:", e)
+        all_products.extend(scrape_flipkart(scrape_q))
+    except:
+        pass
 
-    # ---------- SEED FALLBACK ----------
-    if not offers:
-        norm_q = normalize(q)
+    # ---------- FALLBACK ----------
+    if not all_products:
         for k, v in SEED_PRODUCTS.items():
-            if k in norm_q:
-                offers = ensure_price_value(v)
+            if k in nq:
+                all_products = v
                 break
 
-    if not offers:
-        return {"message": "No deals found", "results": []}
-    
-    # --------------------------------------------------
-    # 🔁 FIX URLs: force search links if homepage URLs
-    # --------------------------------------------------
-    for p in offers:
-        url = p.get("product_url", "")
+    if not all_products:
+        return {"message": "No products found", "results": []}
 
-        # Myntra homepage → search
-        if p.get("platform") == "Myntra" and (
-            url == "https://www.myntra.com" or url.endswith(".com")
-        ):
-            p["product_url"] = build_myntra_search_link(q)
+    # ---------- SCORE ----------
+    scored = []
+    for p in all_products:
+        try:
+            p["price_value"] = parse_price(p.get("price", "0"))
+            p["match_score"] = smart_match_score(p.get("name", ""), q)
+            scored.append(p)
+        except:
+            continue
 
-        # Ajio homepage → search
-        if p.get("platform") == "Ajio" and (
-            url == "https://www.ajio.com" or url.endswith(".com")
-        ):
-            p["product_url"] = build_ajio_search_link(q)
+    scored.sort(key=lambda x: x["match_score"], reverse=True)
 
+    # ---------- PICK TOP 3 PRODUCTS ----------
+    grouped = defaultdict(list)
+    for p in scored:
+        grouped[p["name"]].append(p)
+        if len(grouped) == 3:
+            break
 
-    # ---------- BEST DEAL ----------
-    best = min(offers, key=lambda x: x["price_value"])
-    others = [p for p in offers if p is not best]
+    results = []
 
-    return {
-        "message": "Found best deal",
-        "results": [{
-            "product_name": best["name"],
-            "brand": extract_brand(best["name"]) or "N/A",
+    for product_name, offers in grouped.items():
+        offers.sort(key=lambda x: x["price_value"])
+        best = offers[0]
+        others = offers[1:]
+
+        # ---------- FIX BAD URLS ----------
+        for p in offers:
+            url = p.get("product_url", "")
+            if p.get("platform") == "Myntra" and url.endswith(".com"):
+                p["product_url"] = build_myntra_search_link(q)
+            if p.get("platform") == "Ajio" and url.endswith(".com"):
+                p["product_url"] = build_ajio_search_link(q)
+
+        results.append({
+            "product_name": product_name,
+            "brand": extract_brand(product_name) or "N/A",
+            "match_confidence": best["match_score"],
             "best_deal": best,
             "other_offers": others,
-            "amazon_affiliate_url": build_amazon_search_link(q)
-        }]
+            "amazon_affiliate_url": build_amazon_search_link(product_name),
+        })
+
+    response = {
+        "message": "Top matching products found",
+        "results": results,
     }
 
+    CACHE[nq] = {"time": now, "data": response}
+    return response
 
 # ==================================================
 # RUN
