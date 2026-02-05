@@ -140,8 +140,10 @@ def search(query: Optional[str] = Query(None)):
                 break
 
     if not all_products:
-        return {"message": "No products found", "results": []}
-
+        return {
+        "message": "Product not found on supported platforms",
+        "results": []
+    }
     # ---------- SCORE ----------
     scored = []
     for p in all_products:
