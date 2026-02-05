@@ -45,8 +45,12 @@ STOP_WORDS = {
     "men", "mens", "women", "womens",
     "tshirt", "t-shirt", "shirt"
 }
-
-BRANDS = ["levis", "nike", "adidas", "puma", "roadster", "apple", "samsung"]
+BRANDS = [
+  "levis", "nike", "adidas", "puma",
+  "roadster", "apple", "samsung",
+  "microsoft", "hp", "lenovo", "asus",
+  "oneplus", "sony", "bose", "sony"
+]
 
 def normalize(text: str) -> str:
     return re.sub(r"[^a-z0-9 ]", "", text.lower()).strip()
