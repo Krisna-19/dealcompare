@@ -55,7 +55,9 @@ def tokenize(text: str) -> list:
     return [w for w in normalize(text).split() if w not in STOP_WORDS]
 
 def simplify_query(query: str) -> str:
-    return " ".join(tokenize(query)[:3])
+    words = tokenize(query)
+    return " ".join(words[:4])
+
 
 def extract_brand(text: str):
     t = normalize(text)
