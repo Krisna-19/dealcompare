@@ -84,30 +84,12 @@ def build_ajio_search(query: str) -> dict:
 
 
 def build_amazon_products(query: str) -> List[dict]:
-    base_url = build_amazon_search_link(query)
-
-    # Top 3 Amazon placeholders (safe & compliant)
-    return [
-        {
-            "platform": "Amazon",
-            "price": "Check price",
-            "rating": None,
-            "product_url": base_url,
-        },
-        {
-            "platform": "Amazon",
-            "price": "Check price",
-            "rating": None,
-            "product_url": base_url,
-        },
-        {
-            "platform": "Amazon",
-            "price": "Check price",
-            "rating": None,
-            "product_url": base_url,
-        },
-    ]
-
+    return [{
+        "platform": "Amazon",
+        "price": "Check price",
+        "rating": None,
+        "product_url": build_amazon_search_link(query),
+    }]
 
 # --------------------------------------------------
 # ROUTES
