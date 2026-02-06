@@ -1,11 +1,10 @@
 import os
 import re
-import time
 from typing import Optional, List
 
+import uvicorn
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
 
 from affiliates.amazon_links import build_amazon_search_link
 
@@ -38,34 +37,38 @@ def normalize(text: str) -> str:
     return text
 
 
-def extract_keywords(query: str) -> List[str]:
-    STOP_WORDS = {
-        "for", "with", "and", "or", "the", "men", "women",
-        "professional", "original", "new"
-    }
-    words = normalize(query).split()
-    return [w for w in words if w not in STOP_WORDS and len(w) > 2]
-
-
 def detect_category(query: str) -> str:
     q = normalize(query)
 
-    if any(x in q for x in ["tshirt", "shirt", "jeans", "sweatshirt", "jacket"]):
+    if any(x in q for x in ["shirt", "tshirt", "jeans", "sweatshirt", "jacket", "dress"]):
         return "Fashion"
-    if any(x in q for x in ["laptop", "bag", "backpack", "messenger"]):
+    if any(x in q for x in ["bag", "backpack", "laptop", "messenger", "case"]):
         return "Electronics"
-    if any(x in q for x in ["serum", "cream", "skincare", "facewash"]):
+    if any(x in q for x in ["serum", "cream", "skincare", "facewash", "lotion"]):
         return "Beauty"
-    if any(x in q for x in ["phone", "mobile", "charger", "earbuds"]):
+    if any(x in q for x in ["phone", "mobile", "charger", "earbuds", "headphones"]):
         return "Electronics"
 
     return "General"
 
 
+def generate_top_products(query: str) -> List[str]:
+    """
+    Generic intent expansion – works for ALL products.
+    """
+    base = normalize(query)
+
+    return [
+        base,
+        f"best {base}",
+        f"top rated {base}",
+    ]
+
+
 # --------------------------------------------------
-# CORE SEARCH LOGIC
+# PLATFORM BUILDERS (SAFE – NO SCRAPING)
 # --------------------------------------------------
-def build_myntra_search(query: str) -> dict:
+def build_myntra_offer(query: str) -> dict:
     return {
         "platform": "Myntra",
         "price": "Check price",
@@ -74,7 +77,7 @@ def build_myntra_search(query: str) -> dict:
     }
 
 
-def build_ajio_search(query: str) -> dict:
+def build_ajio_offer(query: str) -> dict:
     return {
         "platform": "Ajio",
         "price": "Check price",
@@ -83,13 +86,14 @@ def build_ajio_search(query: str) -> dict:
     }
 
 
-def build_amazon_products(query: str) -> List[dict]:
-    return [{
+def build_amazon_offer(query: str) -> dict:
+    return {
         "platform": "Amazon",
         "price": "Check price",
         "rating": None,
         "product_url": build_amazon_search_link(query),
-    }]
+    }
+
 
 # --------------------------------------------------
 # ROUTES
@@ -109,35 +113,30 @@ def search(query: Optional[str] = Query(None)):
     if not query:
         return {"message": "No query provided", "results": []}
 
-    query_clean = normalize(query)
-    keywords = extract_keywords(query)
-    category = detect_category(query)
+    clean_query = normalize(query)
+    category = detect_category(clean_query)
 
+    top_products = generate_top_products(clean_query)
     results = []
 
-    # 1️⃣ Myntra
-    results.append(build_myntra_search(query_clean))
+    for product_name in top_products:
+        offers = [
+            build_myntra_offer(product_name),
+            build_ajio_offer(product_name),
+            build_amazon_offer(product_name),
+        ]
 
-    # 2️⃣ Ajio
-    results.append(build_ajio_search(query_clean))
+        results.append({
+            "product_name": product_name,
+            "offers": offers,
+        })
 
-    # 3️⃣ Amazon (Top 3)
-    amazon_products = build_amazon_products(query_clean)
-    results.extend(amazon_products)
-
-    response = {
-        "message": "Top matching products found",
+    return {
+        "message": "Top 3 matching products found",
         "category": category,
         "query": query,
-        "results": [
-            {
-                "product_name": query,
-                "offers": results,
-            }
-        ],
+        "results": results,
     }
-
-    return response
 
 
 # --------------------------------------------------
