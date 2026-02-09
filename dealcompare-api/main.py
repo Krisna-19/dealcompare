@@ -1,18 +1,28 @@
 import os
 import re
+import time
 from typing import Optional, List
 
-import uvicorn
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 
+from scrapers.myntra import scrape_myntra
+from scrapers.ajio import scrape_ajio
 from affiliates.amazon_links import build_amazon_search_link
 
-# --------------------------------------------------
-# APP SETUP
-# --------------------------------------------------
+
 app = FastAPI(title="DealCompare API")
 
+# =========================
+# CONFIG
+# =========================
+CACHE = {}
+CACHE_TTL = 300  # 5 minutes
+
+
+# =========================
+# CORS
+# =========================
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -25,123 +35,130 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --------------------------------------------------
+
+# =========================
 # HELPERS
-# --------------------------------------------------
+# =========================
 def normalize(text: str) -> str:
-    if not text:
-        return ""
-    text = text.lower()
-    text = re.sub(r"[^a-z0-9 ]", " ", text)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
+    return re.sub(r"[^a-z0-9 ]", "", text.lower()).strip()
 
 
-def detect_category(query: str) -> str:
-    q = normalize(query)
-
-    if any(x in q for x in ["shirt", "tshirt", "jeans", "sweatshirt", "jacket", "dress"]):
-        return "Fashion"
-    if any(x in q for x in ["bag", "backpack", "laptop", "messenger", "case"]):
-        return "Electronics"
-    if any(x in q for x in ["serum", "cream", "skincare", "facewash", "lotion"]):
-        return "Beauty"
-    if any(x in q for x in ["phone", "mobile", "charger", "earbuds", "headphones"]):
-        return "Electronics"
-
-    return "General"
+def price_value(price: str) -> int:
+    try:
+        return int(price.replace("₹", "").replace(",", "").strip())
+    except:
+        return 0
 
 
-def generate_top_products(query: str) -> List[str]:
+def pick_best_per_site(products: List[dict]) -> List[dict]:
     """
-    Generic intent expansion – works for ALL products.
+    Pick ONE best product per platform (lowest price)
     """
-    base = normalize(query)
+    best = {}
 
-    return [
-        base,
-        f"best {base}",
-        f"top rated {base}",
-    ]
+    for p in products:
+        platform = p.get("platform")
+        if not platform:
+            continue
 
+        p["price_value"] = price_value(p.get("price", "0"))
 
-# --------------------------------------------------
-# PLATFORM BUILDERS (SAFE – NO SCRAPING)
-# --------------------------------------------------
-def build_myntra_offer(query: str) -> dict:
-    return {
-        "platform": "Myntra",
-        "price": "Check price",
-        "rating": None,
-        "product_url": f"https://www.myntra.com/{query.replace(' ', '-')}",
-    }
+        if platform not in best or p["price_value"] < best[platform]["price_value"]:
+            best[platform] = p
+
+    return list(best.values())
 
 
-def build_ajio_offer(query: str) -> dict:
-    return {
-        "platform": "Ajio",
-        "price": "Check price",
-        "rating": None,
-        "product_url": f"https://www.ajio.com/search/?text={query}",
-    }
+def score_product(product: dict) -> float:
+    """
+    Simple relevance score:
+    lower price + higher rating wins
+    """
+    price = product.get("price_value", 999999)
+    rating = product.get("rating", 3.5)
+
+    return (rating * 2) - (price / 1000)
 
 
-def build_amazon_offer(query: str) -> dict:
-    return {
-        "platform": "Amazon",
-        "price": "Check price",
-        "rating": None,
-        "product_url": build_amazon_search_link(query),
-    }
-
-
-# --------------------------------------------------
+# =========================
 # ROUTES
-# --------------------------------------------------
+# =========================
 @app.get("/")
 def root():
     return {"status": "DealCompare API running"}
 
 
-@app.get("/health")
-def health():
-    return {"status": "healthy"}
-
-
 @app.get("/search")
 def search(query: Optional[str] = Query(None)):
     if not query:
-        return {"message": "No query provided", "results": []}
+        return {"message": "No query", "results": []}
 
-    clean_query = normalize(query)
-    category = detect_category(clean_query)
+    q = normalize(query)
+    now = time.time()
 
-    top_products = generate_top_products(clean_query)
+    # ---- CACHE ----
+    if q in CACHE and now - CACHE[q]["time"] < CACHE_TTL:
+        return CACHE[q]["data"]
+
+    all_products = []
+
+    # ---- SCRAPING ----
+    try:
+        all_products.extend(scrape_myntra(q))
+    except Exception as e:
+        print("Myntra error:", e)
+
+    try:
+        all_products.extend(scrape_ajio(q))
+    except Exception as e:
+        print("Ajio error:", e)
+
+    # ---- NO PRODUCTS FOUND ----
+    if not all_products:
+        return {
+            "message": "Product not found on supported platforms",
+            "results": []
+        }
+
+    # ---- PICK BEST PER SITE ----
+    per_site = pick_best_per_site(all_products)
+
+    # ---- SCORE & SORT ----
+    for p in per_site:
+        p["score"] = score_product(p)
+
+    per_site.sort(key=lambda x: x["score"], reverse=True)
+
+    # ---- TOP 3 PRODUCTS ----
+    top_products = per_site[:3]
+
     results = []
-
-    for product_name in top_products:
-        offers = [
-            build_myntra_offer(product_name),
-            build_ajio_offer(product_name),
-            build_amazon_offer(product_name),
-        ]
-
+    for p in top_products:
         results.append({
-            "product_name": product_name,
-            "offers": offers,
+            "product_name": p.get("name"),
+            "best_deal": p,
+            "other_offers": [],
+            "amazon_affiliate_url": build_amazon_search_link(query)
         })
 
-    return {
-        "message": "Top 3 matching products found",
-        "category": category,
-        "query": query,
-        "results": results,
+    response = {
+        "message": "Top matching products found",
+        "results": results
     }
 
+    CACHE[q] = {
+        "time": now,
+        "data": response
+    }
 
-# --------------------------------------------------
+    return response
+
+
+# =========================
 # RUN
-# --------------------------------------------------
+# =========================
 if __name__ == "__main__":
+    import uvicorn
+
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
