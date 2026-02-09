@@ -1,44 +1,40 @@
-/* =========================
-   GLOBAL
-========================= */
+/* RESET */
 * {
+  margin: 0;
+  padding: 0;
   box-sizing: border-box;
-  font-family: "Segoe UI", Roboto, Arial, sans-serif;
+  font-family: Inter, system-ui, Arial, sans-serif;
 }
 
+/* PAGE */
 body {
-  margin: 0;
-  background: #f5f7fa;
+  background: #f9fafb;
   color: #111827;
 }
 
-/* =========================
-   LAYOUT
-========================= */
+/* MAIN CONTAINER */
 .container {
-  max-width: 1100px;
-  margin: auto;
-  padding: 32px 20px;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 80px 20px;
+  text-align: center;
 }
 
-/* =========================
-   HEADER
-========================= */
+/* TITLE */
 .title {
-  text-align: center;
-  font-size: 2.4rem;
-  margin-bottom: 6px;
+  font-size: 40px;
+  font-weight: 700;
+  margin-bottom: 10px;
 }
 
+/* SUBTITLE */
 .subtitle {
-  text-align: center;
+  font-size: 16px;
   color: #6b7280;
-  margin-bottom: 28px;
+  margin-bottom: 40px;
 }
 
-/* =========================
-   SEARCH
-========================= */
+/* SEARCH */
 .search-box {
   display: flex;
   justify-content: center;
@@ -47,221 +43,41 @@ body {
 }
 
 .search-box input {
-  width: 340px;
-  padding: 12px 14px;
-  font-size: 16px;
+  width: 420px;
+  padding: 14px 16px;
   border-radius: 8px;
   border: 1px solid #d1d5db;
-}
-
-.search-box input:focus {
-  outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  font-size: 15px;
 }
 
 .search-box button {
-  padding: 12px 20px;
-  font-size: 16px;
-  background: #2563eb;
-  color: white;
+  padding: 14px 22px;
+  border-radius: 8px;
   border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.search-box button:hover:not(:disabled) {
-  background: #1d4ed8;
-}
-
-.search-box button:disabled {
-  opacity: 0.6;
-}
-
-/* =========================
-   STATUS
-========================= */
-.error-box {
-  background: #fee2e2;
-  color: #991b1b;
-  padding: 12px 16px;
-  border-radius: 8px;
-  margin: 16px auto;
-  max-width: 600px;
-  text-align: center;
-}
-
-.no-results {
-  text-align: center;
-  margin-top: 20px;
-  color: #6b7280;
-}
-
-/* =========================
-   LOADER
-========================= */
-.loader {
-  text-align: center;
-  margin: 20px 0;
-}
-
-/* =========================
-   RESULTS GRID
-========================= */
-.results {
-  margin-top: 32px;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 24px;
-}
-
-/* =========================
-   CARD
-========================= */
-.card {
-  background: white;
-  border-radius: 14px;
-  padding: 18px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-  transition: transform 0.2s ease;
-}
-
-.card:hover {
-  transform: translateY(-4px);
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.card-header h3 {
-  font-size: 1.1rem;
-  margin: 0;
-}
-
-/* =========================
-   BADGES
-========================= */
-.badge {
-  font-size: 12px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-weight: 600;
-}
-
-.badge.best {
-  background: #16a34a;
-  color: white;
-}
-
-/* =========================
-   CATEGORY
-========================= */
-.category-badge {
-  display: inline-block;
-  background: #f3f4f6;
-  color: #374151;
-  font-size: 13px;
-  padding: 4px 12px;
-  border-radius: 999px;
-  margin-bottom: 8px;
-}
-
-/* =========================
-   DEAL BOX
-========================= */
-.best-deal {
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  border-radius: 10px;
-  padding: 14px;
-  margin: 14px 0;
-}
-
-.best-deal p {
-  margin: 4px 0;
-}
-
-/* =========================
-   BUTTONS
-========================= */
-.btn {
-  display: inline-block;
-  margin-top: 10px;
-  padding: 10px 16px;
   background: #2563eb;
-  color: white;
-  border-radius: 10px;
-  text-decoration: none;
-  font-size: 14px;
+  color: #fff;
   font-weight: 600;
+  cursor: pointer;
 }
 
-.btn:hover {
+.search-box button:hover {
   background: #1d4ed8;
 }
 
-.btn.secondary {
-  background: #111827;
-  margin-left: 10px;
-}
-
-/* =========================
-   OTHER OFFERS
-========================= */
-.other-offers {
-  margin-top: 12px;
-}
-
-.other-offers summary {
-  cursor: pointer;
-  font-weight: 600;
-}
-
-/* =========================
-   PAGES (Privacy, Terms)
-========================= */
-.page {
-  max-width: 800px;
-  margin: 40px auto;
-  padding: 20px;
-  line-height: 1.7;
-  background: white;
-  border-radius: 12px;
-}
-
-/* =========================
-   FOOTER
-========================= */
+/* FOOTER */
 .footer {
   margin-top: 50px;
-  text-align: center;
   font-size: 13px;
   color: #6b7280;
 }
 
 .footer a {
   margin: 0 8px;
+  font-size: 13px;
   color: #2563eb;
   text-decoration: none;
 }
 
 .footer a:hover {
   text-decoration: underline;
-}
-
-/* =========================
-   MOBILE
-========================= */
-@media (max-width: 600px) {
-  .search-box {
-    flex-direction: column;
-  }
-
-  .search-box input {
-    width: 100%;
-  }
 }
