@@ -9,15 +9,16 @@
 body {
   margin: 0;
   background: #f5f7fa;
+  color: #111827;
 }
 
 /* =========================
-   CONTAINER
+   LAYOUT
 ========================= */
 .container {
   max-width: 1100px;
   margin: auto;
-  padding: 24px;
+  padding: 32px 20px;
 }
 
 /* =========================
@@ -25,33 +26,32 @@ body {
 ========================= */
 .title {
   text-align: center;
-  font-size: 2.2rem;
-  margin-bottom: 4px;
+  font-size: 2.4rem;
+  margin-bottom: 6px;
 }
 
 .subtitle {
   text-align: center;
-  color: #666;
-  margin-bottom: 24px;
+  color: #6b7280;
+  margin-bottom: 28px;
 }
 
 /* =========================
-   SEARCH BOX
+   SEARCH
 ========================= */
 .search-box {
-  position: relative;
   display: flex;
-  gap: 10px;
   justify-content: center;
+  gap: 12px;
   margin-bottom: 30px;
 }
 
 .search-box input {
-  width: 300px;
-  padding: 10px 12px;
+  width: 340px;
+  padding: 12px 14px;
   font-size: 16px;
-  border-radius: 6px;
-  border: 1px solid #ccc;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
 }
 
 .search-box input:focus {
@@ -61,121 +61,59 @@ body {
 }
 
 .search-box button {
-  padding: 10px 18px;
+  padding: 12px 20px;
   font-size: 16px;
-  border: none;
   background: #2563eb;
   color: white;
-  border-radius: 6px;
+  border: none;
+  border-radius: 8px;
   cursor: pointer;
   font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.2s ease;
 }
 
 .search-box button:hover:not(:disabled) {
-  background: #1e4fd6;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.15);
+  background: #1d4ed8;
 }
 
 .search-box button:disabled {
   opacity: 0.6;
-  cursor: not-allowed;
 }
 
 /* =========================
-   SUGGESTIONS
+   STATUS
 ========================= */
-.suggestions {
-  position: absolute;
-  top: 45px;
-  left: 0;
-  width: 100%;
-  background: white;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  list-style: none;
-  padding: 0;
-  margin: 4px 0 0;
-  z-index: 1000;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.suggestions li {
-  padding: 10px;
-  cursor: pointer;
-}
-
-.suggestions li:hover {
-  background-color: #f2f2f2;
-}
-
-/* =========================
-   STATUS MESSAGES
-========================= */
-.info {
-  text-align: center;
-  color: #333;
-}
-
-.error {
-  text-align: center;
-  color: red;
-}
-
 .error-box {
-  background: #ffe5e5;
-  color: #b00020;
-  padding: 10px 14px;
-  border-radius: 6px;
-  margin: 12px 0;
-  font-weight: 500;
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin: 16px auto;
+  max-width: 600px;
+  text-align: center;
 }
 
 .no-results {
-  margin-top: 20px;
-  color: #555;
-  font-size: 16px;
   text-align: center;
+  margin-top: 20px;
+  color: #6b7280;
 }
 
 /* =========================
    LOADER
 ========================= */
 .loader {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  text-align: center;
   margin: 20px 0;
-  color: #333;
-}
-
-.spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid #fff;
-  border-top: 2px solid transparent;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 /* =========================
    RESULTS GRID
 ========================= */
 .results {
+  margin-top: 32px;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 20px;
+  gap: 24px;
 }
 
 /* =========================
@@ -183,25 +121,20 @@ body {
 ========================= */
 .card {
   background: white;
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 18px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+  transition: transform 0.2s ease;
 }
 
 .card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
 }
 
-/* =========================
-   CARD HEADER
-========================= */
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
 }
 
 .card-header h3 {
@@ -212,41 +145,40 @@ body {
 /* =========================
    BADGES
 ========================= */
-.badges {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
 .badge {
-  font-size: 11px;
-  font-weight: bold;
-  padding: 4px 8px;
-  border-radius: 20px;
-  color: white;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 600;
 }
 
 .badge.best {
   background: #16a34a;
-}
-
-.badge.price {
-  background: #2563eb;
-}
-
-.badge.rating {
-  background: #f59e0b;
+  color: white;
 }
 
 /* =========================
-   BEST DEAL BOX
+   CATEGORY
+========================= */
+.category-badge {
+  display: inline-block;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 13px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  margin-bottom: 8px;
+}
+
+/* =========================
+   DEAL BOX
 ========================= */
 .best-deal {
   background: #f0fdf4;
   border: 1px solid #bbf7d0;
-  border-radius: 8px;
-  padding: 12px;
-  margin: 12px 0;
+  border-radius: 10px;
+  padding: 14px;
+  margin: 14px 0;
 }
 
 .best-deal p {
@@ -254,173 +186,22 @@ body {
 }
 
 /* =========================
-   LINK
+   BUTTONS
 ========================= */
-.link {
-  display: inline-block;
-  margin-top: 8px;
-  color: #2563eb;
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.link:hover {
-  text-decoration: underline;
-}
-
-/* =========================
-   OTHER OFFERS
-========================= */
-.others {
-  margin-top: 10px;
-  border-top: 1px dashed #ddd;
-  padding-top: 10px;
-}
-
-.others h4 {
-  margin: 0 0 6px 0;
-  font-size: 0.95rem;
-}
-
-.platform {
-  margin: 4px 0;
-  font-size: 14px;
-}
-
-.small {
-  color: #555;
-}
-
-/* =========================
-   SCORE BADGE
-========================= */
-.score-badge {
-  margin-left: 8px;
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: bold;
-}
-
-.score-green {
-  background: #d1fae5;
-  color: #065f46;
-}
-
-.score-yellow {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.score-red {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-/* =========================
-   TOOLTIP
-========================= */
-.tooltip {
-  position: relative;
-  cursor: help;
-}
-
-.tooltip-text {
-  visibility: hidden;
-  opacity: 0;
-  position: absolute;
-  bottom: 130%;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: #111827;
-  color: white;
-  padding: 8px 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  white-space: nowrap;
-  z-index: 20;
-  transition: opacity 0.2s ease;
-}
-
-.tooltip:hover .tooltip-text {
-  visibility: visible;
-  opacity: 1;
-}
-
-.tooltip-text::after {
-  content: "";
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border-width: 6px;
-  border-style: solid;
-  border-color: #111827 transparent transparent transparent;
-}
-
-/* =========================
-   MOBILE
-========================= */
-@media (max-width: 480px) {
-  .search-box {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .search-box input {
-    width: 100%;
-  }
-}
-/* ===== RESULTS ===== */
-.results {
-  margin-top: 24px;
-  display: grid;
-  gap: 20px;
-}
-
-.card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 16px 18px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.06);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 32px rgba(0,0,0,0.12);
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.badge.best {
-  background: #16a34a;
-  color: white;
-  font-size: 12px;
-  padding: 4px 8px;
-  border-radius: 999px;
-}
-
-/* ===== BUTTONS ===== */
 .btn {
   display: inline-block;
   margin-top: 10px;
-  padding: 8px 14px;
+  padding: 10px 16px;
   background: #2563eb;
-  color: #fff;
-  border-radius: 8px;
+  color: white;
+  border-radius: 10px;
   text-decoration: none;
   font-size: 14px;
-  transition: background 0.2s ease, transform 0.15s ease;
+  font-weight: 600;
 }
 
 .btn:hover {
   background: #1d4ed8;
-  transform: translateY(-1px);
 }
 
 .btn.secondary {
@@ -428,11 +209,9 @@ body {
   margin-left: 10px;
 }
 
-.btn.secondary:hover {
-  background: #000;
-}
-
-/* ===== OTHER OFFERS ===== */
+/* =========================
+   OTHER OFFERS
+========================= */
 .other-offers {
   margin-top: 12px;
 }
@@ -442,25 +221,21 @@ body {
   font-weight: 600;
 }
 
-/* ===== ERROR / EMPTY ===== */
-.error-box {
-  background: #fee2e2;
-  color: #991b1b;
-  padding: 10px 14px;
-  border-radius: 8px;
-}
-
-.no-results {
-  margin-top: 20px;
-  color: #6b7280;
-}
+/* =========================
+   PAGES (Privacy, Terms)
+========================= */
 .page {
   max-width: 800px;
   margin: 40px auto;
   padding: 20px;
-  line-height: 1.6;
+  line-height: 1.7;
+  background: white;
+  border-radius: 12px;
 }
 
+/* =========================
+   FOOTER
+========================= */
 .footer {
   margin-top: 50px;
   text-align: center;
@@ -469,18 +244,24 @@ body {
 }
 
 .footer a {
-  margin: 0 6px;
+  margin: 0 8px;
   color: #2563eb;
   text-decoration: none;
 }
-.category-badge {
-  display: inline-block;
-  background: #f3f4f6;
-  color: #374151;
-  font-size: 13px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  margin-bottom: 8px;
-  font-weight: 500;
+
+.footer a:hover {
+  text-decoration: underline;
 }
 
+/* =========================
+   MOBILE
+========================= */
+@media (max-width: 600px) {
+  .search-box {
+    flex-direction: column;
+  }
+
+  .search-box input {
+    width: 100%;
+  }
+}
