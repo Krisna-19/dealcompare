@@ -39,6 +39,21 @@ app.add_middleware(
 # =========================
 # HELPERS
 # =========================
+def is_valid_product(p: dict) -> bool:
+    """
+    Accept only real product entries
+    """
+    price = p.get("price_value", 0)
+    url = p.get("product_url", "")
+
+    if price <= 0:
+        return False
+
+    if not url or "search" in url:
+        return False
+
+    return True
+
 def normalize(text: str) -> str:
     return re.sub(r"[^a-z0-9 ]", "", text.lower()).strip()
 
@@ -130,7 +145,20 @@ def search(query: Optional[str] = Query(None)):
         }
 
     # ---- PICK BEST PER SITE ----
+    # ---- PICK BEST PER SITE ----
     per_site = pick_best_per_site(all_products)
+
+    # ---- FILTER INVALID PRODUCTS ----
+    per_site = [p for p in per_site if is_valid_product(p)]
+
+    if not per_site:
+        return {
+            "message": "No valid products found",
+            "results": []
+        }
+
+    
+
 
     # ---- SCORE & SORT ----
     for p in per_site:
