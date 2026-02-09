@@ -1,13 +1,23 @@
 import { useState } from "react";
 import "./App.css";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+
+/* CATEGORY → ICON MAP */
+const CATEGORY_ICONS = {
+  Fashion: "👕",
+  Electronics: "💻",
+  Beauty: "🧴",
+  General: "🛒",
+};
 
 export default function App() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [results, setResults] = useState([]);
+  const [category, setCategory] = useState("General");
 
   const searchDeals = async () => {
     if (!query.trim()) return;
@@ -27,6 +37,7 @@ export default function App() {
 
       if (data.results && data.results.length > 0) {
         setResults(data.results);
+        setCategory(data.category || "General");
       } else {
         setError("No products found");
       }
@@ -40,9 +51,7 @@ export default function App() {
   return (
     <div className="container">
       {/* HEADER */}
-      <h1 className="logo">
-        DealCompare <span>🔥</span>
-      </h1>
+      <h1 className="logo">DealCompare 🔥</h1>
       <p className="subtitle">Compare prices across multiple platforms</p>
 
       {/* SEARCH */}
@@ -67,6 +76,11 @@ export default function App() {
       {/* RESULTS */}
       {results.map((item, idx) => (
         <div key={idx} className="product-card">
+          {/* CATEGORY BADGE */}
+          <div className="category-badge">
+            {CATEGORY_ICONS[category]} {category}
+          </div>
+
           <h2>{item.product_name}</h2>
 
           <div className="offers">
