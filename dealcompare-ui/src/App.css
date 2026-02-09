@@ -473,3 +473,14 @@ body {
   color: #2563eb;
   text-decoration: none;
 }
+.category-badge {
+  display: inline-block;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
