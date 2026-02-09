@@ -71,11 +71,20 @@ def pick_best_per_site(products: List[dict]) -> List[dict]:
 
 def score_product(product: dict) -> float:
     """
-    Simple relevance score:
-    lower price + higher rating wins
+    Safe relevance score:
+    - Missing rating → assume 3.5
+    - Missing price → penalize
     """
-    price = product.get("price_value", 999999)
-    rating = product.get("rating", 3.5)
+    price = product.get("price_value")
+    rating = product.get("rating")
+
+    # Normalize rating
+    if rating is None or not isinstance(rating, (int, float)):
+        rating = 3.5
+
+    # Normalize price
+    if price is None or price <= 0:
+        price = 999999  # penalize unknown price
 
     return (rating * 2) - (price / 1000)
 
