@@ -18,6 +18,24 @@ app.add_middleware(
 # ======================
 # HELPERS
 # ======================
+STOP_WORDS = {
+    "for", "with", "and", "or", "the", "in", "on", "of",
+    "by", "to", "from", "men", "women", "kids"
+}
+
+def extract_keywords(text: str) -> set:
+    words = normalize(text).split()
+    return {w for w in words if len(w) > 2 and w not in STOP_WORDS}
+
+def match_confidence(query: str, product_name: str) -> float:
+    q_words = extract_keywords(query)
+    p_words = extract_keywords(product_name)
+
+    if not q_words or not p_words:
+        return 0.0
+
+    common = q_words.intersection(p_words)
+    return round(len(common) / len(q_words), 3)
 
 def normalize(text: str) -> str:
     if not text:
@@ -43,12 +61,16 @@ def score_product(p: dict) -> float:
 
     return round((rating * 2) - (price / 1000), 3)
 
-def is_valid_product(p: dict) -> bool:
-    return bool(
-        p.get("product_name")
-        and p.get("product_url")
-        and p.get("platform")
-    )
+def is_valid_product(p: dict, query: str) -> bool:
+    if not p.get("product_name") or not p.get("product_url"):
+        return False
+
+    confidence = match_confidence(query, p["product_name"])
+    p["match_confidence"] = confidence
+
+    # Reject weak matches
+    return confidence >= 0.3
+
 
 # ======================
 # SCRAPERS (SAFE FALLBACK VERSION)
@@ -112,9 +134,14 @@ def search(query: str):
     products += ajio_products(query)
 
     # Filter invalid junk
-    products = [p for p in products if is_valid_product(p)]
+    valid_products = []
 
-    if not products:
+    for p in products:
+        if is_valid_product(p, query):
+            p["score"] = score_product(p)
+            valid_products.append(p)
+
+    if not valid_products:
         return {"message": "No products found", "results": []}
 
     # Score safely
@@ -122,10 +149,12 @@ def search(query: str):
         p["score"] = score_product(p)
 
     # Sort by score (best first)
-    products.sort(key=lambda x: x["score"], reverse=True)
+    valid_products.sort(
+    key=lambda x: (x["match_confidence"], x["score"]),
+    reverse=True
+    )
 
-    # Limit to TOP 3
-    products = products[:3]
+    results = valid_products[:3]
 
     return {
         "message": "Top matching products found",
