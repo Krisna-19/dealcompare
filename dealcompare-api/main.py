@@ -1,13 +1,13 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 import re
 
-# ======================
-# APP SETUP
-# ======================
-app = FastAPI()
+app = FastAPI(title="DealCompare API")
 
+# =========================
+# CORS
+# =========================
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -15,148 +15,81 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ======================
-# HELPERS
-# ======================
-STOP_WORDS = {
-    "for", "with", "and", "or", "the", "in", "on", "of",
-    "by", "to", "from", "men", "women", "kids"
-}
+# =========================
+# CONFIG
+# =========================
+AMAZON_TAG = "dealcompare19-21"
 
-def extract_keywords(text: str) -> set:
-    words = normalize(text).split()
-    return {w for w in words if len(w) > 2 and w not in STOP_WORDS}
 
-def match_confidence(query: str, product_name: str) -> float:
-    q_words = extract_keywords(query)
-    p_words = extract_keywords(product_name)
-
-    if not q_words or not p_words:
-        return 0.0
-
-    common = q_words.intersection(p_words)
-    return round(len(common) / len(q_words), 3)
-
+# =========================
+# UTILS
+# =========================
 def normalize(text: str) -> str:
-    if not text:
-        return ""
     text = text.lower()
     text = re.sub(r"[^a-z0-9\s]", " ", text)
     return re.sub(r"\s+", " ", text).strip()
 
-def safe_float(val, default=0.0):
-    try:
-        return float(val)
-    except:
-        return default
 
-def score_product(p: dict) -> float:
-    """
-    Safe scoring:
-    - Rating helps
-    - Lower price helps
-    """
-    rating = safe_float(p.get("rating"), 0)
-    price = safe_float(p.get("price_value"), 999999)
-
-    return round((rating * 2) - (price / 1000), 3)
-
-def is_valid_product(p: dict, query: str) -> bool:
-    if not p.get("product_name") or not p.get("product_url"):
-        return False
-
-    confidence = match_confidence(query, p["product_name"])
-    p["match_confidence"] = confidence
-
-    # Reject weak matches
-    return confidence >= 0.3
-
-
-# ======================
-# SCRAPERS (SAFE FALLBACK VERSION)
-# ======================
-
-def amazon_products(query: str) -> List[dict]:
+def build_amazon_search_url(query: str) -> str:
     q = query.replace(" ", "+")
-    return [
-        {
-            "product_name": query,
-            "price": "Check price",
-            "price_value": 0,
-            "rating": None,
+    return f"https://www.amazon.in/s?k={q}&tag={AMAZON_TAG}"
+
+
+def score_product(index: int) -> float:
+    """
+    For now:
+    Amazon search order = ranking signal
+    Earlier result = better score
+    """
+    return round(1 / (index + 1), 3)
+
+
+# =========================
+# MOCK AMAZON FETCH (Stage 1)
+# =========================
+def fetch_amazon_products(query: str) -> List[dict]:
+    """
+    Stage 1:
+    We simulate structured products based on search query.
+    Later this will be replaced with real PA-API.
+    """
+
+    base_url = build_amazon_search_url(query)
+
+    products = []
+
+    for i in range(5):
+        products.append({
+            "title": f"{query.title()} - Option {i+1}",
             "platform": "Amazon",
-            "product_url": f"https://www.amazon.in/s?k={q}&tag=dealcompare19-21",
-        }
-    ]
-
-def myntra_products(query: str) -> List[dict]:
-    q = query.replace(" ", "%20")
-    return [
-        {
-            "product_name": query,
-            "price": "Check price",
+            "price_display": "Check price",
             "price_value": 0,
             "rating": None,
-            "platform": "Myntra",
-            "product_url": f"https://www.myntra.com/{q}",
-        }
-    ]
+            "image": "",
+            "url": base_url,
+            "category": "General",
+            "score": score_product(i)
+        })
 
-def ajio_products(query: str) -> List[dict]:
-    q = query.replace(" ", "%20")
-    return [
-        {
-            "product_name": query,
-            "price": "Check price",
-            "price_value": 0,
-            "rating": None,
-            "platform": "Ajio",
-            "product_url": f"https://www.ajio.com/search/?text={q}",
-        }
-    ]
+    return products
 
-# ======================
-# SEARCH API
-# ======================
 
+# =========================
+# SEARCH ENDPOINT
+# =========================
 @app.get("/search")
-def search(query: str):
+def search(query: str = Query(...)):
     query = normalize(query)
 
     if not query:
         return {"message": "Invalid query", "results": []}
 
-    products = []
+    products = fetch_amazon_products(query)
 
-    # Collect equally from all platforms
-    products += amazon_products(query)
-    products += myntra_products(query)
-    products += ajio_products(query)
-
-    # Filter invalid junk
-    valid_products = []
-
-    for p in products:
-        if is_valid_product(p, query):
-            p["score"] = score_product(p)
-            valid_products.append(p)
-
-    if not valid_products:
+    if not products:
         return {"message": "No products found", "results": []}
-
-    # Score safely
-    for p in products:
-        p["score"] = score_product(p)
-
-    # Sort by score (best first)
-    valid_products.sort(
-    key=lambda x: (x["match_confidence"], x["score"]),
-    reverse=True
-    )
-
-    results = valid_products[:3]
 
     return {
         "message": "Top matching products found",
-        "results": products,
+        "results": products
     }
