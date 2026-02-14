@@ -1,4 +1,4 @@
-from models.product import Product
+from models.product_model import Product
 from utils.category import detect_category
 from urllib.parse import quote_plus
 
