@@ -2,7 +2,7 @@ from models.product_model import Product
 from utils.category import detect_category
 from urllib.parse import quote_plus
 
-def search(query: str):
+def search_amazon(query: str):
 
     category = detect_category(query)
     encoded = quote_plus(query)
