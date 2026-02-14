@@ -1,13 +1,15 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 
 @dataclass
 class Product:
     title: str
     platform: str
-    price_display: str
     price_value: float
+    price_display: str
     rating: float | None
-    image: str
     url: str
+    image: str
     category: str
-    score: float
+
+    def to_dict(self):
+        return asdict(self)
