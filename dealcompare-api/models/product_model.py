@@ -1,15 +1,12 @@
-from dataclasses import dataclass, asdict
+from typing import Optional
+from pydantic import BaseModel
 
-@dataclass
-class Product:
+class Product(BaseModel):
     title: str
-    platform: str
     price_value: float
     price_display: str
-    rating: float | None
+    platform: str
     url: str
-    image: str
-    category: str
+    rating: Optional[float] = None
+    image: Optional[str] = ""
 
-    def to_dict(self):
-        return asdict(self)
