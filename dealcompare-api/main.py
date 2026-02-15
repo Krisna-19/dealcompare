@@ -1,9 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-from platforms.amazon import search_amazon
-from platforms.myntra import search_myntra
-from platforms.ajio import search_ajio
+from services.search_service import search_all
 
 from services.grouping_service import group_products
 from services.aggregation_service import aggregate_grouped_products
