@@ -6,7 +6,7 @@ from platforms.myntra import search_myntra
 from platforms.ajio import search_ajio
 
 from services.search_service import search_all
-from services.ranking_service import rank_products
+from services.ranking_service import score_product
 
 app = FastAPI()
 
