@@ -2,10 +2,10 @@ from platforms import amazon, myntra, ajio
 
 def search_all(query: str):
 
-    results = []
+    products = []
 
-    results += amazon.search(query)
-    results += myntra.search(query)
-    results += ajio.search(query)
+    products.extend(amazon.search(query))
+    products.extend(myntra.search(query))
+    products.extend(ajio.search(query))
 
-    return results
+    return products
