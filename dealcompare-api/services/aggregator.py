@@ -1,50 +1,67 @@
 import re
 from difflib import SequenceMatcher
-
-STOP_WORDS = {
-    "for", "with", "and", "the", "in", "of", "to",
-    "best", "new", "latest", "original",
-    "buy", "sale", "offer"
-}
+from collections import defaultdict
 
 
-def clean_title(title: str):
-    title = title.lower()
-    title = re.sub(r"[^a-z0-9\s]", " ", title)
-    words = [w for w in title.split() if w not in STOP_WORDS and len(w) > 2]
-    return words
+# -----------------------------
+# TEXT NORMALIZATION
+# -----------------------------
+def normalize(text):
+    text = text.lower()
+    text = re.sub(r'[^a-z0-9\s]', ' ', text)
+    return text.strip()
 
 
-def token_similarity(a, b):
-    set_a = set(clean_title(a))
-    set_b = set(clean_title(b))
+# -----------------------------
+# EXTRACT IMPORTANT TOKENS
+# (model numbers, ml, gb, inch etc.)
+# -----------------------------
+def extract_model_tokens(text):
+    text = text.lower()
 
-    if not set_a or not set_b:
-        return 0
+    # capture:
+    # 350ml, 14l, 128gb, 6gb, sc04, m2, 15.6inch etc.
+    tokens = re.findall(r'\b[a-z]*\d+[a-z]*\b', text)
 
-    overlap = len(set_a & set_b)
-    total = len(set_a | set_b)
-
-    return overlap / total
-
-
-def string_similarity(a, b):
-    return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+    return set(tokens)
 
 
-def hybrid_similarity(a, b):
-    token_score = token_similarity(a, b)
-    string_score = string_similarity(a, b)
+# -----------------------------
+# HYBRID SIMILARITY
+# -----------------------------
+def hybrid_similarity(title1, title2):
+    t1 = normalize(title1)
+    t2 = normalize(title2)
 
-    # Weighted combination
-    return (token_score * 0.6) + (string_score * 0.4)
+    # Base similarity
+    base_score = SequenceMatcher(None, t1, t2).ratio()
+
+    # Model token similarity
+    tokens1 = extract_model_tokens(t1)
+    tokens2 = extract_model_tokens(t2)
+
+    if tokens1 and tokens2:
+        common = tokens1.intersection(tokens2)
+        model_score = len(common) / max(len(tokens1), len(tokens2))
+    else:
+        model_score = 0
+
+    # Weighted score
+    final_score = (0.7 * base_score) + (0.3 * model_score)
+
+    return final_score
 
 
+# -----------------------------
+# AGGREGATION
+# -----------------------------
 def aggregate_products(products):
+
     grouped = []
     used = set()
 
     for i, product in enumerate(products):
+
         if i in used:
             continue
 
@@ -52,15 +69,13 @@ def aggregate_products(products):
         used.add(i)
 
         for j, other in enumerate(products):
+
             if j in used:
                 continue
 
-            similarity = hybrid_similarity(
-                product["title"],
-                other["title"]
-            )
+            score = hybrid_similarity(product["title"], other["title"])
 
-            if similarity > 0.55:  # tuned threshold
+            if score > 0.65:  # slightly stronger threshold
                 group.append(other)
                 used.add(j)
 
@@ -69,10 +84,10 @@ def aggregate_products(products):
     final_results = []
 
     for group in grouped:
+
         best = min(
             group,
-            key=lambda x: x["price_value"]
-            if x["price_value"] > 0 else 999999
+            key=lambda x: x["price_value"] if x["price_value"] > 0 else 999999
         )
 
         final_results.append({
