@@ -1,18 +1,38 @@
+import re
 from collections import defaultdict
-from difflib import SequenceMatcher
+
+STOP_WORDS = {
+    "best", "top", "new", "latest", "offer", "sale",
+    "for", "with", "and", "the", "in", "on"
+}
 
 
-def similarity(a, b):
-    if not a or not b:
-        return 0.0
-    return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+def normalize(text):
+    text = text.lower()
+    text = re.sub(r"[^a-z0-9\s]", "", text)
+    words = text.split()
+    words = [w for w in words if w not in STOP_WORDS]
+    return set(words)
+
+
+def similarity_score(title1, title2):
+    words1 = normalize(title1)
+    words2 = normalize(title2)
+
+    if not words1 or not words2:
+        return 0
+
+    intersection = words1.intersection(words2)
+    union = words1.union(words2)
+
+    return len(intersection) / len(union)
 
 
 def aggregate_products(products):
-    grouped = []
+
+    groups = []
     used = set()
 
-    # ---- GROUP SIMILAR PRODUCTS ----
     for i, product in enumerate(products):
         if i in used:
             continue
@@ -24,23 +44,18 @@ def aggregate_products(products):
             if j in used:
                 continue
 
-            score = similarity(product.get("title", ""), other.get("title", ""))
+            score = similarity_score(product["title"], other["title"])
 
-            if score > 0.75:
+            if score > 0.6:   # tuned threshold
                 group.append(other)
                 used.add(j)
 
-        grouped.append(group)
+        groups.append(group)
 
-    # ---- PICK BEST OFFER FROM EACH GROUP ----
     final_results = []
 
-    for group in grouped:
-
-        valid_prices = [
-            p for p in group
-            if p.get("price_value") and p["price_value"] > 0
-        ]
+    for group in groups:
+        valid_prices = [p for p in group if p["price_value"] > 0]
 
         if valid_prices:
             best = min(valid_prices, key=lambda x: x["price_value"])
@@ -48,18 +63,11 @@ def aggregate_products(products):
             best = group[0]
 
         final_results.append({
-            "title": best.get("title"),
-            "best_price": best.get("price_display"),
-            "best_platform": best.get("platform"),
-            "best_url": best.get("url"),
-            "offers": [
-                {
-                    "platform": p.get("platform"),
-                    "price": p.get("price_display"),
-                    "url": p.get("url")
-                }
-                for p in group
-            ]
+            "title": best["title"],
+            "best_price": best["price_display"],
+            "best_platform": best["platform"],
+            "best_url": best["url"],
+            "offers": group
         })
 
     return final_results
