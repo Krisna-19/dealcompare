@@ -8,7 +8,7 @@ def similarity(a, b):
     return SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
 
-def aggregate_grouped_products(products):
+def aggregate_products(products):
     grouped = []
     used = set()
 
