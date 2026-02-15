@@ -29,6 +29,14 @@ def search(query: str):
     results.extend(amazon_products)
     results.extend(myntra_products)
     results.extend(ajio_products)
+    try:
+        products = search_all(query)
+        ranked = rank_products(products)
+        return {"results": ranked}
+    except Exception as e:
+        print("ERROR:", e)
+        return {"error": str(e)}
+
 
     if not results:
         return {
