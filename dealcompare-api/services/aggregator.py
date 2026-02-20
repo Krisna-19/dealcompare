@@ -1,94 +1,56 @@
-import re
-from difflib import SequenceMatcher
-from collections import defaultdict
+from services.ranking_service import calculate_match_score
 
 
-# -----------------------------
-# TEXT NORMALIZATION
-# -----------------------------
-def normalize(text):
-    text = text.lower()
-    text = re.sub(r'[^a-z0-9\s]', ' ', text)
-    return text.strip()
+MATCH_THRESHOLD = 75  # strict grouping threshold
 
 
-# -----------------------------
-# EXTRACT IMPORTANT TOKENS
-# (model numbers, ml, gb, inch etc.)
-# -----------------------------
-def extract_model_tokens(text):
-    text = text.lower()
-
-    # capture:
-    # 350ml, 14l, 128gb, 6gb, sc04, m2, 15.6inch etc.
-    tokens = re.findall(r'\b[a-z]*\d+[a-z]*\b', text)
-
-    return set(tokens)
-
-
-# -----------------------------
-# HYBRID SIMILARITY
-# -----------------------------
-def hybrid_similarity(title1, title2):
-    t1 = normalize(title1)
-    t2 = normalize(title2)
-
-    # Base similarity
-    base_score = SequenceMatcher(None, t1, t2).ratio()
-
-    # Model token similarity
-    tokens1 = extract_model_tokens(t1)
-    tokens2 = extract_model_tokens(t2)
-
-    if tokens1 and tokens2:
-        common = tokens1.intersection(tokens2)
-        model_score = len(common) / max(len(tokens1), len(tokens2))
-    else:
-        model_score = 0
-
-    # Weighted score
-    final_score = (0.7 * base_score) + (0.3 * model_score)
-
-    return final_score
-
-
-# -----------------------------
-# AGGREGATION
-# -----------------------------
 def aggregate_products(products):
+    """
+    Groups similar products across platforms,
+    selects best price, and returns structured comparison result.
+    """
 
     grouped = []
-    used = set()
+    used_indexes = set()
 
     for i, product in enumerate(products):
 
-        if i in used:
+        if i in used_indexes:
             continue
 
-        group = [product]
-        used.add(i)
+        current_group = [product]
+        used_indexes.add(i)
 
         for j, other in enumerate(products):
 
-            if j in used:
+            if j in used_indexes:
                 continue
 
-            score = hybrid_similarity(product["title"], other["title"])
+            score = calculate_match_score(
+                product["title"],
+                other["title"]
+            )
 
-            if score > 0.65:  # slightly stronger threshold
-                group.append(other)
-                used.add(j)
+            if score >= MATCH_THRESHOLD:
+                current_group.append(other)
+                used_indexes.add(j)
 
-        grouped.append(group)
+        grouped.append(current_group)
 
     final_results = []
 
     for group in grouped:
 
-        best = min(
-            group,
-            key=lambda x: x["price_value"] if x["price_value"] > 0 else 999999
-        )
+        # Filter products with valid price
+        valid_prices = [
+            p for p in group if p.get("price_value", 0) > 0
+        ]
+
+        if valid_prices:
+            best = min(valid_prices, key=lambda x: x["price_value"])
+        else:
+            # fallback if all price_value are 0
+            best = group[0]
 
         final_results.append({
             "title": best["title"],
