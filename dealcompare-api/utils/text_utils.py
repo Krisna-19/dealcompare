@@ -24,3 +24,32 @@ def similarity_score(a: str, b: str) -> float:
     union = set_a.union(set_b)
 
     return len(intersection) / len(union)
+
+
+
+
+BRANDS = [
+    "apple", "samsung", "oneplus", "xiaomi",
+    "realme", "sony", "dell", "hp", "lenovo"
+]
+
+def extract_brand(title: str):
+    title_lower = title.lower()
+    for brand in BRANDS:
+        if brand in title_lower:
+            return brand
+    return None
+
+
+def extract_storage(title: str):
+    match = re.search(r'(\d+)\s?(gb|tb)', title.lower())
+    if match:
+        return match.group(1) + match.group(2)
+    return None
+
+def extract_model_number(title: str):
+    # Detect things like S24, 15 Pro, 14 Plus
+    match = re.search(r'\b([a-zA-Z]*\d+[a-zA-Z]*)\b', title)
+    if match:
+        return match.group(1)
+    return None        
