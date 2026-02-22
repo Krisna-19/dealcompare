@@ -21,6 +21,9 @@ def search_amazon(query: str):
             page.wait_for_selector("div.s-result-item", timeout=15000)
 
             products = page.query_selector_all("div.s-result-item")
+            print("Page loaded")
+            print("Products found:", len(products))
+        
 
             for product in products[:8]:
 
