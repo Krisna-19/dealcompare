@@ -9,7 +9,7 @@ HEADERS = {
 }
 
 
-def search(query: str):
+def search_amazon(query: str):
     encoded_query = quote_plus(query)
     url = f"https://www.amazon.in/s?k={encoded_query}"
 
