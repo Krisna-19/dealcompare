@@ -16,6 +16,9 @@ def search_amazon(query: str):
     try:
         response = requests.get(url, headers=HEADERS, timeout=10)
 
+        print("Status Code:", response.status_code)
+        print("HTML length:", len(response.text))
+
         if response.status_code != 200:
             print("Amazon request failed")
             return []
