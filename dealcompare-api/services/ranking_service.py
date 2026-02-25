@@ -54,14 +54,16 @@ def calculate_match_score(query: str, title: str):
             total_score -= 20
 
     # -------------------------
-    # 3️⃣ Storage Matching (20%)
+    # 2️⃣ Model Number Matching (30%)
     # -------------------------
-    query_storage = extract_storage(query)
-    title_storage = extract_storage(title)
+    query_models = extract_model_numbers(query)
+    title_models = extract_model_numbers(title)
 
-    if query_storage:
-        if any(storage.lower() in [s.lower() for s in title_storage] for storage in query_storage):
-            total_score += 20
+    if query_models:
+        match_count = sum(1 for m in query_models if m in title_models)
+
+        if match_count > 0:
+            total_score += 30
         else:
             total_score -= 10
 
