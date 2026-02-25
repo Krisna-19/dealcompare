@@ -1,5 +1,6 @@
 from playwright.sync_api import sync_playwright
 from urllib.parse import quote_plus
+from services.ranking_service import calculate_match_score
 
 
 def search_amazon(query: str):
@@ -12,7 +13,7 @@ def search_amazon(query: str):
     try:
         with sync_playwright() as p:
 
-            browser = p.chromium.launch(headless=False)
+            browser = p.chromium.launch(headless=False)  # change to True after testing
             context = browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
             )
@@ -21,7 +22,10 @@ def search_amazon(query: str):
             print("Opening Amazon URL:", url)
 
             page.goto(url, timeout=60000)
-            page.wait_for_selector('div[data-component-type="s-search-result"]', timeout=20000)
+            page.wait_for_selector(
+                'div[data-component-type="s-search-result"]',
+                timeout=20000
+            )
 
             print("Page loaded")
 
@@ -34,13 +38,17 @@ def search_amazon(query: str):
             for product in products:
 
                 try:
-                    # TITLE (more reliable selector)
+                    # TITLE
                     title_element = product.query_selector("span.a-size-medium")
-
                     if not title_element:
                         continue
 
                     title = title_element.inner_text().strip()
+
+                    # 🔥 FILTER USING MATCH SCORE
+                    score = calculate_match_score(query, title)
+                    if score < 65:
+                        continue
 
                     # LINK
                     link_element = product.query_selector("a.a-link-normal")
