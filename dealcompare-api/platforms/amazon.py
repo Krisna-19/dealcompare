@@ -34,26 +34,30 @@ def search_amazon(query: str):
             for product in products:
 
                 try:
-                    # CORRECT TITLE SELECTOR
-                    title_element = product.query_selector("h2 a span")
-                    link_element = product.query_selector("h2 a")
+                    # TITLE (more reliable selector)
+                    title_element = product.query_selector("span.a-size-medium")
 
-                    if not title_element or not link_element:
+                    if not title_element:
                         continue
 
                     title = title_element.inner_text().strip()
-                    href = link_element.get_attribute("href")
 
-                    if not href:
+                    # LINK
+                    link_element = product.query_selector("a.a-link-normal")
+                    if not link_element:
+                        continue
+
+                    href = link_element.get_attribute("href")
+                    if not href or "/dp/" not in href:
                         continue
 
                     product_url = "https://www.amazon.in" + href
 
                     # PRICE
-                    price_whole = product.query_selector("span.a-price-whole")
+                    price_element = product.query_selector("span.a-price-whole")
 
-                    if price_whole:
-                        price_text = price_whole.inner_text().replace(",", "").strip()
+                    if price_element:
+                        price_text = price_element.inner_text().replace(",", "").strip()
                         try:
                             price_value = float(price_text)
                             price_display = f"₹{price_text}"
@@ -79,7 +83,7 @@ def search_amazon(query: str):
                     })
 
                 except Exception as e:
-                    print("Error inside loop:", e)
+                    print("Loop error:", e)
                     continue
 
                 if len(results) >= 8:
