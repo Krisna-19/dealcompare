@@ -4,21 +4,23 @@ from platforms.ajio import search_ajio
 
 def search_all(query: str):
 
-    products = []
+    print("search_all triggered")
+    print("Calling Amazon...")
 
-    try:
-        products.extend(search_amazon(query))
-    except Exception as e:
-        print("Amazon error:", e)
+    amazon_products = search_amazon(query)
 
-    try:
-        products.extend(search_myntra(query))
-    except Exception as e:
-        print("Myntra error:", e)
+    print("Amazon returned:", len(amazon_products))
 
-    try:
-        products.extend(search_ajio(query))
-    except Exception as e:
-        print("Ajio error:", e)
+    print("Calling Myntra...")
+    myntra_products = search_myntra(query)
+    print("Myntra returned:", len(myntra_products))
 
-    return products
+    print("Calling Ajio...")
+    ajio_products = search_ajio(query)
+    print("Ajio returned:", len(ajio_products))
+
+    all_products = amazon_products + myntra_products + ajio_products
+
+    print("Total products collected:", len(all_products))
+
+    return all_products
