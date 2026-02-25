@@ -12,57 +12,47 @@ def search_amazon(query: str):
     try:
         with sync_playwright() as p:
 
-            browser = p.chromium.launch(headless=False)  # keep False for debugging
+            browser = p.chromium.launch(headless=False)
             context = browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
             )
             page = context.new_page()
 
             print("Opening Amazon URL:", url)
 
             page.goto(url, timeout=60000)
-            page.wait_for_selector("div.s-result-item", timeout=20000)
+            page.wait_for_selector('div[data-component-type="s-search-result"]', timeout=20000)
 
             print("Page loaded")
 
-            # Target only real product cards
-            products = page.query_selector_all(
-                'div.s-result-item[data-component-type="s-search-result"]'
-            )
+            products = page.query_selector_all('div[data-component-type="s-search-result"]')
 
             print("Valid product containers:", len(products))
 
             for product in products:
 
                 try:
-                    title_element = product.query_selector("h2 a span")
-                    link_element = product.query_selector("h2 a")
+                    # TITLE
+                    title = product.query_selector("h2").inner_text().strip()
 
-                    if not title_element or not link_element:
+                    # LINK
+                    link = product.query_selector("h2 a").get_attribute("href")
+                    product_url = "https://www.amazon.in" + link if link else None
+
+                    if not title or not product_url:
                         continue
 
-                    title = title_element.inner_text().strip()
-                    href = link_element.get_attribute("href")
-
-                    if not href:
-                        continue
-
-                    product_url = "https://www.amazon.in" + href
-
-                    price_whole = product.query_selector("span.a-price-whole")
-
-                    if price_whole:
-                        price_text = price_whole.inner_text().replace(",", "").strip()
-                        try:
-                            price_value = float(price_text)
-                            price_display = f"₹{price_text}"
-                        except:
-                            price_value = 0
-                            price_display = "Check price"
+                    # PRICE
+                    price_element = product.query_selector("span.a-price-whole")
+                    if price_element:
+                        price_text = price_element.inner_text().replace(",", "").strip()
+                        price_value = float(price_text)
+                        price_display = f"₹{price_text}"
                     else:
                         price_value = 0
                         price_display = "Check price"
 
+                    # IMAGE
                     image_element = product.query_selector("img.s-image")
                     image = image_element.get_attribute("src") if image_element else ""
 
@@ -88,5 +78,5 @@ def search_amazon(query: str):
         return results
 
     except Exception as e:
-        print("Amazon Playwright scraping error:", e)
+        print("Amazon scraping error:", e)
         return []
