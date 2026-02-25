@@ -13,7 +13,7 @@ def search_amazon(query: str):
     try:
         with sync_playwright() as p:
 
-            browser = p.chromium.launch(headless=False)  # change to True after testing
+            browser = p.chromium.launch(headless=False)  # change to True later
             context = browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
             )
@@ -38,19 +38,30 @@ def search_amazon(query: str):
             for product in products:
 
                 try:
+                    # -----------------
                     # TITLE
+                    # -----------------
                     title_element = product.query_selector("span.a-size-medium")
                     if not title_element:
                         continue
 
                     title = title_element.inner_text().strip()
 
-                    # 🔥 FILTER USING MATCH SCORE
+                    # -----------------
+                    # MATCH SCORE
+                    # -----------------
                     score = calculate_match_score(query, title)
-                    if score < 65:
+
+                    print("TITLE:", title)
+                    print("SCORE:", score)
+                    print("------")
+
+                    if score < 40:
                         continue
 
+                    # -----------------
                     # LINK
+                    # -----------------
                     link_element = product.query_selector("a.a-link-normal")
                     if not link_element:
                         continue
@@ -61,7 +72,9 @@ def search_amazon(query: str):
 
                     product_url = "https://www.amazon.in" + href
 
+                    # -----------------
                     # PRICE
+                    # -----------------
                     price_element = product.query_selector("span.a-price-whole")
 
                     if price_element:
@@ -76,7 +89,9 @@ def search_amazon(query: str):
                         price_value = 0
                         price_display = "Check price"
 
+                    # -----------------
                     # IMAGE
+                    # -----------------
                     image_element = product.query_selector("img.s-image")
                     image = image_element.get_attribute("src") if image_element else ""
 
