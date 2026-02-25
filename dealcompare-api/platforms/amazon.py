@@ -26,35 +26,38 @@ def search_amazon(query: str):
             print("Page loaded")
 
             products = page.query_selector_all('div[data-component-type="s-search-result"]')
-
             print("Valid product containers:", len(products))
 
             for product in products:
 
                 try:
-                    # TITLE
-                    title = product.query_selector("h2").inner_text().strip()
+                    title_el = product.query_selector("h2")
+                    link_el = product.query_selector("h2 a")
 
-                    # LINK
-                    link = product.query_selector("h2 a").get_attribute("href")
-                    product_url = "https://www.amazon.in" + link if link else None
-
-                    if not title or not product_url:
+                    if not title_el or not link_el:
+                        print("Missing title or link — skipping")
                         continue
 
-                    # PRICE
-                    price_element = product.query_selector("span.a-price-whole")
-                    if price_element:
-                        price_text = price_element.inner_text().replace(",", "").strip()
+                    title = title_el.inner_text().strip()
+                    href = link_el.get_attribute("href")
+
+                    if not href:
+                        print("Missing href — skipping")
+                        continue
+
+                    product_url = "https://www.amazon.in" + href
+
+                    price_el = product.query_selector("span.a-price-whole")
+                    if price_el:
+                        price_text = price_el.inner_text().replace(",", "").strip()
                         price_value = float(price_text)
                         price_display = f"₹{price_text}"
                     else:
                         price_value = 0
                         price_display = "Check price"
 
-                    # IMAGE
-                    image_element = product.query_selector("img.s-image")
-                    image = image_element.get_attribute("src") if image_element else ""
+                    image_el = product.query_selector("img.s-image")
+                    image = image_el.get_attribute("src") if image_el else ""
 
                     results.append({
                         "title": title,
@@ -66,7 +69,8 @@ def search_amazon(query: str):
                         "image": image
                     })
 
-                except:
+                except Exception as e:
+                    print("Error inside loop:", e)
                     continue
 
                 if len(results) >= 8:
