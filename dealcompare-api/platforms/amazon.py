@@ -12,7 +12,7 @@ def search_amazon(query: str):
     try:
         with sync_playwright() as p:
 
-            browser = p.chromium.launch(headless=False)  # Keep False for debugging
+            browser = p.chromium.launch(headless=False)  # keep False for debugging
             context = browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
             )
@@ -21,25 +21,29 @@ def search_amazon(query: str):
             print("Opening Amazon URL:", url)
 
             page.goto(url, timeout=60000)
-            page.wait_for_selector("div.s-result-item", timeout=15000)
+            page.wait_for_selector("div.s-result-item", timeout=20000)
 
             print("Page loaded")
 
-            products = page.query_selector_all("div.s-result-item")
-            print("Products found:", len(products))
+            # Target only real product cards
+            products = page.query_selector_all(
+                'div.s-result-item[data-component-type="s-search-result"]'
+            )
+
+            print("Valid product containers:", len(products))
 
             for product in products:
 
                 try:
-                    title_element = product.query_selector("h2 span")
+                    title_element = product.query_selector("h2 a span")
                     link_element = product.query_selector("h2 a")
 
                     if not title_element or not link_element:
                         continue
 
                     title = title_element.inner_text().strip()
-
                     href = link_element.get_attribute("href")
+
                     if not href:
                         continue
 
