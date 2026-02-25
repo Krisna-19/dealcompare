@@ -16,8 +16,7 @@ def search_myntra(query: str):
         price_display="Check price",
         rating=None,
         url=url,
-        image="",
-        category=category
+        image=""
     )
 
     return [product]
