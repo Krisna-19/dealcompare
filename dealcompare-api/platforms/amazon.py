@@ -40,11 +40,13 @@ def search_amazon(query: str):
                 # --------------------
                 # Extract Title FIRST
                 # --------------------
-                title_element = product.query_selector("h2 a span")
-                if not title_element:
+                link_element = product.query_selector('a[href*="/dp/"]')
+                if not link_element:
                     continue
 
-                title = title_element.inner_text().strip()
+                title = link_element.inner_text().strip()
+                href = link_element.get_attribute("href")
+                product_url = "https://www.amazon.in" + href
 
                 print("TITLE:", title)
 
@@ -61,7 +63,6 @@ def search_amazon(query: str):
                 # --------------------
                 # Extract Link
                 # --------------------
-                link_element = product.query_selector("h2 a")
                 if not link_element:
                     continue
 
