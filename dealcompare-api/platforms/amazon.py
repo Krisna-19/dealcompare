@@ -46,6 +46,19 @@ def search_amazon(query: str):
                         continue
 
                     title = title_element.inner_text().strip()
+                    # Reject short / invalid titles
+                    if len(title.split()) < 3:
+                        continue
+
+                    # Must contain model number from query
+                    from services.ranking_service import extract_model_number
+
+                    query_model = extract_model_number(query)
+                    title_model = extract_model_number(title)
+
+                    if query_model and title_model:
+                        if query_model != title_model:
+                            continue
 
                     if not title:
                         continue
