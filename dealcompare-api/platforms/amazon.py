@@ -41,11 +41,12 @@ def search_amazon(query: str):
                     # -----------------
                     # TITLE
                     # -----------------
-                    title_element = product.query_selector("h2 a span")
-                    if not title_element:
-                        continue
+                    for product in products:
 
-                    title = title_element.inner_text().strip()
+                        title_element = product.query_selector("h2 a span")
+                        if title_element:
+                            title = title_element.inner_text().strip()
+                            print("TITLE:", title)
 
                     # -----------------
                     # MATCH SCORE
@@ -56,8 +57,8 @@ def search_amazon(query: str):
                     print("SCORE:", score)
                     print("------")
 
-                    if score < 40:
-                        continue
+                    # if score < 40:
+                    #     continue
 
                     # -----------------
                     # LINK
