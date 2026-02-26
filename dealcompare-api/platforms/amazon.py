@@ -13,7 +13,7 @@ def search_amazon(query: str):
     try:
         with sync_playwright() as p:
 
-            browser = p.chromium.launch(headless=False)
+            browser = p.chromium.launch(headless=False)  # Change to True after stable
             context = browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
             )
@@ -37,73 +37,83 @@ def search_amazon(query: str):
 
             for product in products:
 
-                # --------------------
-                # Extract Title FIRST
-                # --------------------
-                link_element = product.query_selector('a[href*="/dp/"]')
-                if not link_element:
-                    continue
+                try:
+                    # -----------------------
+                    # TITLE (visible title)
+                    # -----------------------
+                    title_element = product.query_selector("span.a-size-medium")
+                    if not title_element:
+                        continue
 
-                title = link_element.inner_text().strip()
-                href = link_element.get_attribute("href")
-                product_url = "https://www.amazon.in" + href
+                    title = title_element.inner_text().strip()
 
-                print("TITLE:", title)
+                    if not title:
+                        continue
 
-                # --------------------
-                # Calculate Score
-                # --------------------
-                score = calculate_match_score(query, title)
-                print("SCORE:", score)
-                print("------")
+                    # -----------------------
+                    # MATCH SCORE FILTER
+                    # -----------------------
+                    score = calculate_match_score(query, title)
 
-                if score < 40:
-                    continue
+                    print("TITLE:", title)
+                    print("SCORE:", score)
+                    print("------")
 
-                # --------------------
-                # Extract Link
-                # --------------------
-                if not link_element:
-                    continue
+                    if score < 50:
+                        continue
 
-                href = link_element.get_attribute("href")
-                if not href:
-                    continue
+                    # -----------------------
+                    # PRODUCT LINK
+                    # -----------------------
+                    link_element = product.query_selector("a.a-link-normal")
+                    if not link_element:
+                        continue
 
-                product_url = "https://www.amazon.in" + href
+                    href = link_element.get_attribute("href")
+                    if not href or "/dp/" not in href:
+                        continue
 
-                # --------------------
-                # Extract Price
-                # --------------------
-                price_element = product.query_selector("span.a-price-whole")
+                    product_url = "https://www.amazon.in" + href
 
-                if price_element:
-                    price_text = price_element.inner_text().replace(",", "").strip()
-                    try:
-                        price_value = float(price_text)
-                        price_display = f"₹{price_text}"
-                    except:
+                    # -----------------------
+                    # PRICE
+                    # -----------------------
+                    price_element = product.query_selector("span.a-price-whole")
+
+                    if price_element:
+                        price_text = price_element.inner_text().replace(",", "").strip()
+                        try:
+                            price_value = float(price_text)
+                            price_display = f"₹{price_text}"
+                        except:
+                            price_value = 0
+                            price_display = "Check price"
+                    else:
                         price_value = 0
                         price_display = "Check price"
-                else:
-                    price_value = 0
-                    price_display = "Check price"
 
-                # --------------------
-                # Extract Image
-                # --------------------
-                image_element = product.query_selector("img.s-image")
-                image = image_element.get_attribute("src") if image_element else ""
+                    # -----------------------
+                    # IMAGE
+                    # -----------------------
+                    image_element = product.query_selector("img.s-image")
+                    image = image_element.get_attribute("src") if image_element else ""
 
-                results.append({
-                    "title": title,
-                    "price_value": price_value,
-                    "price_display": price_display,
-                    "platform": "Amazon",
-                    "url": product_url,
-                    "rating": None,
-                    "image": image
-                })
+                    # -----------------------
+                    # APPEND RESULT
+                    # -----------------------
+                    results.append({
+                        "title": title,
+                        "price_value": price_value,
+                        "price_display": price_display,
+                        "platform": "Amazon",
+                        "url": product_url,
+                        "rating": None,
+                        "image": image
+                    })
+
+                except Exception as e:
+                    print("Loop error:", e)
+                    continue
 
                 if len(results) >= 8:
                     break
