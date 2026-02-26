@@ -2,75 +2,79 @@ import re
 from rapidfuzz import fuzz
 
 
-# Extract model numbers like 15, 14 Pro, S23, etc.
-def extract_model_numbers(text: str):
-    return re.findall(r'\b\d+\b', text)
+# -----------------------------
+# TEXT NORMALIZATION
+# -----------------------------
+def normalize(text: str) -> str:
+    text = text.lower()
+    text = re.sub(r"[^a-z0-9\s]", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
 
 
-# Extract storage values like 128GB, 256 GB
+# -----------------------------
+# EXTRACT MODEL NUMBER
+# -----------------------------
+def extract_model_number(text: str):
+    """
+    Extracts numbers like:
+    15, 14, 13, 17 etc from 'iPhone 15'
+    """
+    match = re.search(r"\b\d{1,2}\b", text)
+    return match.group() if match else None
+
+
+# -----------------------------
+# EXTRACT STORAGE (128GB etc)
+# -----------------------------
 def extract_storage(text: str):
-    return re.findall(r'\b\d+\s?GB\b', text, re.IGNORECASE)
+    match = re.search(r"(\d{2,4})\s?gb", text.lower())
+    return match.group(1) if match else None
 
 
-# Extract brand (basic for now)
-def extract_brand(text: str):
-    brands = ["apple", "samsung", "oneplus", "iqoo", "realme", "xiaomi"]
-    text_lower = text.lower()
-    for brand in brands:
-        if brand in text_lower:
-            return brand
-    return None
+# -----------------------------
+# STRICT MODEL MATCH CHECK
+# -----------------------------
+def strict_model_match(query: str, title: str):
+
+    query = normalize(query)
+    title = normalize(title)
+
+    query_model = extract_model_number(query)
+    title_model = extract_model_number(title)
+
+    query_storage = extract_storage(query)
+    title_storage = extract_storage(title)
+
+    # MODEL must match if exists
+    if query_model and title_model:
+        if query_model != title_model:
+            return False
+
+    # STORAGE must match if exists
+    if query_storage and title_storage:
+        if query_storage != title_storage:
+            return False
+
+    return True
 
 
+# -----------------------------
+# MATCH SCORE
+# -----------------------------
 def calculate_match_score(query: str, title: str):
 
-    query_lower = query.lower()
-    title_lower = title.lower()
+    query_norm = normalize(query)
+    title_norm = normalize(title)
 
-    total_score = 0
+    base_score = fuzz.token_set_ratio(query_norm, title_norm)
 
-    # -------------------------
-    # 1️⃣ Brand Matching (40%)
-    # -------------------------
-    query_brand = extract_brand(query)
-    title_brand = extract_brand(title)
+    # bonus for brand presence
+    brand_bonus = 0
+    if "iphone" in query_norm and "iphone" in title_norm:
+        brand_bonus += 10
 
-    if query_brand and title_brand:
-        if query_brand == title_brand:
-            total_score += 40
-        else:
-            return 0  # completely different brand → reject
+    if "apple" in query_norm and "apple" in title_norm:
+        brand_bonus += 5
 
-    # -------------------------
-    # 2️⃣ Model Number Matching (30%)
-    # -------------------------
-    query_models = extract_model_numbers(query)
-    title_models = extract_model_numbers(title)
-
-    if query_models:
-        if any(model in title_models for model in query_models):
-            total_score += 30
-        else:
-            total_score -= 20
-
-    # -------------------------
-    # 2️⃣ Model Number Matching (30%)
-    # -------------------------
-    query_models = extract_model_numbers(query)
-    title_models = extract_model_numbers(title)
-
-    if query_models:
-        match_count = sum(1 for m in query_models if m in title_models)
-
-        if match_count > 0:
-            total_score += 30
-        else:
-            total_score -= 10
-
-    # -------------------------
-    # 4️⃣ Text Similarity (10%)
-    # -------------------------
-    similarity = fuzz.partial_ratio(query_lower, title_lower)
-    total_score += similarity * 0.1  # max 10 points
-
-    return total_score
+    return base_score + brand_bonus

@@ -53,13 +53,15 @@ def search_amazon(query: str):
                     # -----------------------
                     # MATCH SCORE FILTER
                     # -----------------------
+                    from services.ranking_service import strict_model_match
+
+                    # strict model filter first
+                    if not strict_model_match(query, title):
+                        continue
+
                     score = calculate_match_score(query, title)
 
-                    print("TITLE:", title)
-                    print("SCORE:", score)
-                    print("------")
-
-                    if score < 50:
+                    if score < 55:
                         continue
 
                     # -----------------------
