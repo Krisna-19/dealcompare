@@ -47,7 +47,7 @@ def search_amazon(query: str):
 
                     title = title_element.inner_text().strip()
                     # Reject short / invalid titles
-                    if len(title.split()) < 3:
+                    if len(title.split()) < 2:
                         continue
 
                     # Must contain model number from query
@@ -74,7 +74,7 @@ def search_amazon(query: str):
 
                     score = calculate_match_score(query, title)
 
-                    if score < 30:
+                    if score < 15:
                         continue
 
                     # -----------------------
