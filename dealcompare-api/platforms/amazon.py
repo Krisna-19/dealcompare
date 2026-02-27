@@ -41,7 +41,7 @@ def search_amazon(query: str):
                     # -----------------------
                     # TITLE (visible title)
                     # -----------------------
-                    title_element = product.query_selector("h2 span")
+                    title_element = product.query_selector("h2 a span")
                     if not title_element:
                         continue
 
