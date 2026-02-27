@@ -74,7 +74,7 @@ def search_amazon(query: str):
 
                     score = calculate_match_score(query, title)
 
-                    if score < 55:
+                    if score < 30:
                         continue
 
                     # -----------------------
