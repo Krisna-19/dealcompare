@@ -1,6 +1,6 @@
 import re
 from rapidfuzz import fuzz
-from utils.text_utils import normalize_text, extract_model_number, extract_storage
+from app.utils.text_utils import normalize_text, extract_model_number, extract_storage
 
 
 # -----------------------------
