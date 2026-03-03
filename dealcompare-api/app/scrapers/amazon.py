@@ -1,9 +1,9 @@
-from playwright.sync_api import sync_playwright
+from playwright.async_api import async_playwright
 from urllib.parse import quote_plus
 from app.services.ranking_service import calculate_match_score
 
 
-def search_amazon(query: str):
+async def search_amazon(query: str):
 
     encoded_query = quote_plus(query)
     url = f"https://www.amazon.in/s?k={encoded_query}"
@@ -11,13 +11,12 @@ def search_amazon(query: str):
     results = []
 
     try:
-        with sync_playwright() as p:
-
-            browser = p.chromium.launch(headless=False)  # Change to True after stable
-            context = browser.new_context(
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
             )
-            page = context.new_page()
+            page = await context.new_page()
 
             print("Opening Amazon URL:", url)
 
