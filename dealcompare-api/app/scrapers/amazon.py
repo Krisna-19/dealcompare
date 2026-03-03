@@ -1,6 +1,6 @@
 from playwright.sync_api import sync_playwright
 from urllib.parse import quote_plus
-from services.ranking_service import calculate_match_score
+from app.services.ranking_service import calculate_match_score
 
 
 def search_amazon(query: str):
