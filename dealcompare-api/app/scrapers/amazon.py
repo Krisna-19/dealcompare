@@ -20,15 +20,15 @@ async def search_amazon(query: str):
 
             print("Opening Amazon URL:", url)
 
-            page.goto(url, timeout=60000)
-            page.wait_for_selector(
+            await page.goto(url, timeout=60000)
+            await page.wait_for_selector(
                 'div[data-component-type="s-search-result"]',
                 timeout=20000
             )
 
             print("Page loaded")
 
-            products = page.query_selector_all(
+            products = await page.query_selector_all(
                 'div[data-component-type="s-search-result"]'
             )
 
@@ -44,7 +44,7 @@ async def search_amazon(query: str):
                     if not title_element:
                         continue
 
-                    title = title_element.inner_text().strip()
+                    title = await title_element.inner_text().strip()
                     # Reject short / invalid titles
                     if len(title.split()) < 2:
                         continue
@@ -132,7 +132,7 @@ async def search_amazon(query: str):
                 if len(results) >= 8:
                     break
 
-            browser.close()
+            await browser.close()
 
         print("Amazon returned:", len(results))
         return results

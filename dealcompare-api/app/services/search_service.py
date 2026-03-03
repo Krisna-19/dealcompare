@@ -5,23 +5,21 @@ import asyncio
 
 async def search_all(query: str):
 
-        print("search_all triggered")
-        print("Calling Amazon...")
+            amazon_task = search_amazon(query)
+            myntra_task = asyncio.to_thread(search_myntra, query)
+            ajio_task = asyncio.to_thread(search_ajio, query)
 
-        amazon_products = search_amazon(query)
+            results = await asyncio.gather(
+                amazon_task,
+                myntra_task,
+                ajio_task,
+                return_exceptions=True
+            )
 
-        print("Amazon returned:", len(amazon_products))
+            all_products = []
 
-        print("Calling Myntra...")
-        myntra_products = search_myntra(query)
-        print("Myntra returned:", len(myntra_products))
+            for result in results:
+                if isinstance(result, list):
+                    all_products.extend(result)
 
-        print("Calling Ajio...")
-        ajio_products = search_ajio(query)
-        print("Ajio returned:", len(ajio_products))
-
-        all_products = amazon_products + myntra_products + ajio_products
-
-        print("Total products collected:", len(all_products))
-
-        return all_products
+            return all_products
