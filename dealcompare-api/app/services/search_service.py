@@ -1,6 +1,6 @@
-from platforms.amazon import search_amazon
-from platforms.myntra import search_myntra
-from platforms.ajio import search_ajio
+from app.scrapers.amazon import search_amazon
+from app.scrapers.myntra import search_myntra
+from app.scrapers.ajio import search_ajio
 
 def search_all(query: str):
 
