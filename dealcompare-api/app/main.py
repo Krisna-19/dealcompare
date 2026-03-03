@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from services.search_service import search_all
-from services.aggregator import aggregate_products
+from app.services.search_service import search_all
+from app.aggregator.aggregator_service import aggregate_products
 
 app = FastAPI()
 
