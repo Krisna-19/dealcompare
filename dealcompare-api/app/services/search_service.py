@@ -27,6 +27,10 @@ async def search_all(query: str):
     print("Myntra results:", len(myntra_products))
     print("Ajio results:", len(ajio_products))
 
+    # ✅ Add warning here
+    if len(amazon_products) == 0:
+        print("⚠ Amazon returned no results")
+
     all_products = []
     for r in results:
         all_products.extend(r)
