@@ -68,33 +68,22 @@ def calculate_match_score(query: str, title: str):
     query_norm = normalize_text(query)
     title_norm = normalize_text(title)
 
+    # Base similarity
+    score = fuzz.token_set_ratio(query_norm, title_norm)
+
+    # Extract important tokens
     query_model = extract_model_number(query_norm)
     title_model = extract_model_number(title_norm)
 
     query_storage = extract_storage(query_norm)
     title_storage = extract_storage(title_norm)
 
-    score = 0
-
-    # Model match
+    # Model match bonus
     if query_model and title_model and query_model == title_model:
-        score += 40
-    else:
-        return -50
+        score += 20
 
-    # Storage match
-    if query_storage:
-        if query_storage == title_storage:
-            score += 40
-        else:
-            return -40
-
-    # Keyword overlap
-    query_words = set(query_norm.split())
-    title_words = set(title_norm.split())
-
-    overlap = query_words.intersection(title_words)
-
-    score += len(overlap) * 5
+    # Storage match bonus
+    if query_storage and title_storage and query_storage == title_storage:
+        score += 20
 
     return score
