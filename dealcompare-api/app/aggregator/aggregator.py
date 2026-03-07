@@ -38,11 +38,15 @@ def generate_group_key(title: str):
     model = extract_model_number(title_norm)
     storage = extract_storage(title_norm)
 
-    # build strict grouping key
     key_parts = []
 
-    if "iphone" in title_norm:
-        key_parts.append("iphone")
+    # detect common brands
+    brands = ["iphone", "samsung", "oneplus", "xiaomi", "realme", "oppo"]
+
+    for brand in brands:
+        if brand in title_norm:
+            key_parts.append(brand)
+            break
 
     if model:
         key_parts.append(model)
@@ -51,8 +55,7 @@ def generate_group_key(title: str):
         key_parts.append(storage)
 
     if not key_parts:
-        # fallback to first 3 words
-        words = title_norm.split()[:3]
+        words = title_norm.split()[:4]
         key_parts = words
 
     return "-".join(key_parts)
@@ -95,5 +98,6 @@ def aggregate_products(products):
             "best_url": best_product["url"],
             "offers": items
         })
+        results.sort(key=lambda x: float(x["best_price"].replace("₹", "").replace(",", "")) if "₹" in x["best_price"] else 999999)    
 
     return results
