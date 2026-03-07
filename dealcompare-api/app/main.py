@@ -15,15 +15,15 @@ app.add_middleware(
 @app.get("/search")
 async def search(query: str):
 
-        products = await search_all(query)
+        try:
+            products = await search_all(query)
 
-        compared = aggregate_products(products)
+            compared = aggregate_products(products)
 
-        return {
-            "message": "Products compared successfully",
-            "results": compared
-        }
+            return {
+                "message": "Products compared successfully",
+                "results": compared
+            }
 
         except Exception as e:
-            print("ERROR:", e)
             return {"error": str(e)}
