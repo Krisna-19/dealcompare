@@ -42,8 +42,7 @@ def search_amazon(query: str):
                     # TITLE
                     # -------------------
                     title_el = (
-                        product.query_selector("h2 a span") or
-                        product.query_selector("h2 span")
+                        product.query_selector("h2 a span") 
                     )
                     if not title_el:
                         continue
@@ -51,6 +50,9 @@ def search_amazon(query: str):
                     title = title_el.inner_text().strip()
 
                     print("Amazon product:", title)
+
+                    if len(title.split()) < 3:
+                        continue
 
                     title_lower = title.lower()
 
