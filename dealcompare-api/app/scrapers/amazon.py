@@ -47,6 +47,8 @@ def search_amazon(query: str):
 
                     title = title_el.inner_text().strip()
 
+                    print("Amazon product:", title)
+
                     title_lower = title.lower()
 
                     # Filter accessories
