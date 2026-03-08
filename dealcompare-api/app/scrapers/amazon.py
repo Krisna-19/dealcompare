@@ -41,10 +41,9 @@ def search_amazon(query: str):
                     # -------------------
                     # TITLE
                     # -------------------
-                    title_el = (
-                        product.query_selector("h2 a span") 
-                    )
+                    title_el = product.query_selector("h2 a span") or product.query_selector("h2 span")
                     if not title_el:
+                        print("Title not found for product container")
                         continue
 
                     title = title_el.inner_text().strip()
