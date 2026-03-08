@@ -18,7 +18,8 @@ def search_amazon(query: str):
 
             # Build search URL
             query = query.replace("iphone", "apple iphone")
-            url = f"https://www.amazon.in/s?k={query.replace(' ', '+')}"
+            search_query = query + " smartphone"
+            url = f"https://www.amazon.in/s?k={search_query.replace(' ', '+')}"
             print("Amazon URL:", url)
 
             page.goto(url, timeout=60000)
