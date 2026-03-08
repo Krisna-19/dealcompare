@@ -49,13 +49,15 @@ def strict_model_match(query: str, title: str):
 
     # MODEL must match if exists
     if query_model and title_model:
-        if query_model != title_model:
-            return False
+        if query_model == title_model:
+            score += 20
+        else:
+            score -= 10
 
     # STORAGE must match if exists
     if query_storage and title_storage:
-        if query_storage != title_storage:
-            return False
+        if query_storage == title_storage:
+            score += 20
 
     return True
 
