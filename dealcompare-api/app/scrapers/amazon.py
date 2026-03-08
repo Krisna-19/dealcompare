@@ -66,7 +66,7 @@ def search_amazon(query: str):
                     print("SCORE:", score)
                     print("------")
 
-                    if score < 30:
+                    if score < 10:
                         continue
 
                     # ---------------------------
