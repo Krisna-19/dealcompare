@@ -41,7 +41,10 @@ def search_amazon(query: str):
                     # -------------------
                     # TITLE
                     # -------------------
-                    title_el = product.query_selector("h2 a span")
+                    title_el = (
+                        product.query_selector("h2 a span") or
+                        product.query_selector("h2 span")
+                    )
                     if not title_el:
                         continue
 
@@ -66,7 +69,7 @@ def search_amazon(query: str):
                     # -------------------
                     # PRODUCT LINK
                     # -------------------
-                    link_el = product.query_selector("a.a-link-normal")
+                    link_el = product.query_selector("h2 a")
                     if not link_el:
                         continue
 
@@ -80,7 +83,10 @@ def search_amazon(query: str):
                     # -------------------
                     # PRICE
                     # -------------------
-                    price_el = product.query_selector("span.a-offscreen")
+                    price_el = (
+                        product.query_selector("span.a-offscreen") or
+                        product.query_selector("span.a-price-whole")
+                    )
 
                     if price_el:
                         price_text = price_el.inner_text().replace("₹", "").replace(",", "").strip()
