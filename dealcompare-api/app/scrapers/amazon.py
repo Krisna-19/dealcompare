@@ -67,6 +67,7 @@ def search_amazon(query: str):
                                     ]
 
                     if any(word in title_lower for word in blocked_words):
+                        print("Skipped (blocked word):", title)
                         continue
 
                     # -------------------
