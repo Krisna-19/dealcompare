@@ -48,6 +48,8 @@ def search_amazon(query: str):
 
                     title = title_el.inner_text().strip()
                     title_lower = title.lower()
+                    if "iphone 15" not in title_lower:
+                        continue
 
                     print("Amazon product:", title)
 
