@@ -51,10 +51,12 @@ def search_amazon(query: str):
 
                     # Filter accessories
                     blocked_words = [
-                        "case", "cover", "charger",
-                        "cable", "screen guard",
-                        "tempered", "adapter"
-                    ]
+                                        "case",
+                                        "cover",
+                                        "screen guard",
+                                        "tempered glass",
+                                        "back cover"
+                                    ]
 
                     if any(word in title_lower for word in blocked_words):
                         continue
