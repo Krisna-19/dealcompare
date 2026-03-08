@@ -48,13 +48,15 @@ def search_amazon(query: str):
                         continue
 
                     title = title_el.inner_text().strip()
+                    title_lower = title.lower()
 
                     print("Amazon product:", title)
 
                     if len(title.split()) < 3:
+                        print("Skipping short title:", title)
                         continue
 
-                    title_lower = title.lower()
+                    # title_lower = title.lower()
 
                     # Filter accessories
                     blocked_words = [
