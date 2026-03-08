@@ -80,10 +80,10 @@ def search_amazon(query: str):
                     # -------------------
                     # PRICE
                     # -------------------
-                    price_el = product.query_selector("span.a-price-whole")
+                    price_el = product.query_selector("span.a-offscreen")
 
                     if price_el:
-                        price_text = price_el.inner_text().replace(",", "")
+                        price_text = price_el.inner_text().replace("₹", "").replace(",", "").strip()
                         try:
                             price_value = float(price_text)
                             price_display = f"₹{price_text}"
