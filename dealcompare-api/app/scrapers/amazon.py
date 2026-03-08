@@ -56,7 +56,7 @@ def search_amazon(query: str):
                         print("Skipping short title:", title)
                         continue
 
-                    # title_lower = title.lower()
+                    title_lower = title.lower()
 
                     # Filter accessories
                     blocked_words = [
