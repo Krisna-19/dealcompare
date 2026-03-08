@@ -17,6 +17,7 @@ def search_amazon(query: str):
             page = context.new_page()
 
             # Build search URL
+            query = query.replace("iphone", "apple iphone")
             url = f"https://www.amazon.in/s?k={query.replace(' ', '+')}"
             print("Amazon URL:", url)
 
