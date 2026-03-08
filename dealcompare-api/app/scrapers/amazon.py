@@ -8,7 +8,7 @@ def search_amazon(query: str):
     try:
         with sync_playwright() as p:
 
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(headless=False)
 
             context = browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
@@ -19,12 +19,15 @@ def search_amazon(query: str):
             # Build search URL
             url = f"https://www.amazon.in/s?k={query.replace(' ', '+')}"
             print("Amazon URL:", url)
-            page.goto(url, timeout=60000)
-            page.goto(url, timeout=60000)
-            page.wait_for_timeout(2000)
 
-            # Wait for product containers
-            page.wait_for_selector('div.s-main-slot')
+            page.goto(url, timeout=60000)
+
+            page.wait_for_timeout(3000)
+
+            page.wait_for_selector(
+                'div[data-component-type="s-search-result"]',
+                timeout=60000
+            )
 
             products = page.query_selector_all(
                 'div[data-component-type="s-search-result"]'
