@@ -46,8 +46,8 @@ def search_amazon(query: str):
                     # ---------------------------
                     # TITLE
                     # ---------------------------
-                    title_element = product.query_selector("h2 a span")
-
+                    title_element = product.query_selector("h2 a span") \
+                        or product.query_selector("h2 span")
                     if not title_element:
                         continue
 
