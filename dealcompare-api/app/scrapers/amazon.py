@@ -7,7 +7,7 @@ from app.services.ranking_service import calculate_match_score
 def search_amazon(query: str):
 
     encoded_query = quote_plus(query)
-    url = f"https://www.amazon.in/s?k={encoded_query}"
+    url = f"https://www.amazon.in/s?k={encoded_query}+smartphone&rh=n%3A1389401031"
 
     results = []
 
@@ -69,6 +69,11 @@ def search_amazon(query: str):
                     if score < 10:
                         continue
 
+                    title_lower = title.lower()
+
+                    if "iphone 15" not in title_lower:
+                        continue    
+
                     # ---------------------------
                     # PRODUCT LINK
                     # ---------------------------
@@ -87,14 +92,13 @@ def search_amazon(query: str):
                     # ---------------------------
                     # PRICE
                     # ---------------------------
-                    price_element = product.query_selector(
-                        "span.a-price-whole"
-                    )
+                    price_element = product.query_selector("span.a-offscreen")
 
                     if price_element:
 
                         price_text = (
                             price_element.inner_text()
+                            .replace(",", "")
                             .replace(",", "")
                             .strip()
                         )
