@@ -1,19 +1,33 @@
 from urllib.parse import quote_plus
+from app.utils.text_utils import generate_product_key
 
+def search_myntra(query):
 
-def search_myntra(query: str):
+    results = []
 
-    encoded = quote_plus(query)
-    url = f"https://www.myntra.com/{encoded}"
+    products = [
+        {
+            "title": query.title(),
+            "url": f"https://www.myntra.com/{query.replace(' ', '')}"
+        }
+    ]
 
-    product = {
-        "title": query.title(),
-        "platform": "Myntra",
-        "price_value": 0,
-        "price_display": "Check price",
-        "rating": None,
-        "url": url,
-        "image": ""
-    }
+    for product in products:
 
-    return [product]
+        title = product["title"]
+
+        product_key = generate_product_key(title)
+
+        if not product_key:
+            continue
+
+        results.append({
+            "title": title,
+            "product_key": product_key,
+            "platform": "Myntra",
+            "price_value": 0,
+            "price_display": "Check price",
+            "url": product["url"]
+        })
+
+    return results

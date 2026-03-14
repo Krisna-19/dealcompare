@@ -1,6 +1,6 @@
 from playwright.sync_api import sync_playwright
 from urllib.parse import quote_plus
-
+from app.utils.text_utils import generate_product_key
 from app.services.ranking_service import calculate_match_score
 
 
@@ -128,13 +128,18 @@ def search_amazon(query: str):
                     # ---------------------------
                     # ADD RESULT
                     # ---------------------------
+                    product_key = generate_product_key(title)
+
+                    if not product_key:
+                        continue
+
                     results.append({
                         "title": title,
+                        "product_key": product_key,
+                        "platform": "Amazon",
                         "price_value": price_value,
                         "price_display": price_display,
-                        "platform": "Amazon",
                         "url": product_url,
-                        "rating": None,
                         "image": image
                     })
 

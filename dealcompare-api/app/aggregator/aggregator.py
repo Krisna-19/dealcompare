@@ -66,38 +66,32 @@ def generate_group_key(title: str):
 # -----------------------------
 def aggregate_products(products):
 
-    grouped = defaultdict(list)
+    grouped = {}
 
-    # group by strict key
     for product in products:
-        key = generate_group_key(product["title"])
+
+        key = product.get("product_key")
+
+        if not key:
+            continue
+
+        if key not in grouped:
+            grouped[key] = []
+
         grouped[key].append(product)
 
     results = []
 
     for key, items in grouped.items():
 
-        # pick best price
-        valid_prices = [p for p in items if p["price_value"] > 0]
-
-        if valid_prices:
-            best_product = min(valid_prices, key=lambda x: x["price_value"])
-        else:
-            best_product = items[0]
-
-        # choose best representative title (longest)
-        representative_title = max(
-            items,
-            key=lambda x: len(x["title"])
-        )["title"]
+        best = min(items, key=lambda x: x["price_value"] if x["price_value"] else float("inf"))
 
         results.append({
-            "title": representative_title,
-            "best_price": best_product["price_display"],
-            "best_platform": best_product["platform"],
-            "best_url": best_product["url"],
+            "title": best["title"],
+            "best_price": best["price_display"],
+            "best_platform": best["platform"],
+            "best_url": best["url"],
             "offers": items
         })
-        results.sort(key=lambda x: float(x["best_price"].replace("₹", "").replace(",", "")) if "₹" in x["best_price"] else 999999)    
 
     return results

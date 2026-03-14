@@ -34,3 +34,39 @@ def extract_storage(text: str):
         return match.group(1) + match.group(2)
 
     return None
+
+
+def extract_product_info(text):
+
+    text = text.lower()
+
+    brand = None
+    model = None
+    storage = None
+
+    if "iphone" in text:
+        brand = "apple"
+
+    model_match = re.search(r'iphone\s*(\d+)', text)
+    if model_match:
+        model = model_match.group(1)
+
+    storage_match = re.search(r'(\d+)\s?gb', text)
+    if storage_match:
+        storage = storage_match.group(1) + "gb"
+
+    return brand, model, storage
+
+def generate_product_key(title):
+
+    brand, model, storage = extract_product_info(title)
+
+    if not brand or not model:
+        return None
+
+    key = f"{brand}-iphone-{model}"
+
+    if storage:
+        key += f"-{storage}"
+
+    return key
