@@ -7,7 +7,7 @@ from app.services.ranking_service import calculate_match_score
 def search_amazon(query: str):
 
     encoded_query = quote_plus(query)
-    url = f"https://www.amazon.in/s?k={encoded_query}+smartphone&rh=n%3A1389401031"
+    url = f"https://www.amazon.in/s?k=apple+{encoded_query}&rh=n%3A1389401031"
 
     results = []
 
