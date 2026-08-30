@@ -1,0 +1,162 @@
+from playwright.sync_api import sync_playwright
+from urllib.parse import quote_plus
+from app.utils.text_utils import generate_product_key
+from app.services.ranking_service import calculate_match_score
+
+
+def search_amazon(query: str):
+
+    encoded_query = quote_plus(query)
+    url = f"https://www.amazon.in/s?k=apple+{encoded_query}&rh=n%3A1389401031"
+
+    results = []
+
+    try:
+        with sync_playwright() as p:
+
+            browser = p.chromium.launch(headless=False)
+
+            context = browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+            )
+
+            page = context.new_page()
+
+            print("Opening Amazon URL:", url)
+
+            page.goto(url, timeout=60000)
+
+            page.wait_for_selector(
+                'div[data-component-type="s-search-result"]',
+                timeout=20000
+            )
+
+            print("Page loaded")
+
+            products = page.query_selector_all(
+                'div[data-component-type="s-search-result"]'
+            )
+
+            print("Valid product containers:", len(products))
+
+            for product in products:
+
+                try:
+
+                    # ---------------------------
+                    # TITLE
+                    # ---------------------------
+                    title_element = product.query_selector("h2 a span") \
+                        or product.query_selector("h2 span")
+                    if not title_element:
+                        continue
+
+                    title = title_element.inner_text().strip()
+
+                    # Reject short / invalid titles
+                    if len(title.split()) < 3:
+                        continue
+
+                    # ---------------------------
+                    # MATCH SCORE
+                    # ---------------------------
+                    score = calculate_match_score(query, title)
+
+                    print("TITLE:", title)
+                    print("SCORE:", score)
+                    print("------")
+
+                    if score < 10:
+                        continue
+
+                    title_lower = title.lower()
+
+                    if "iphone 15" not in title_lower:
+                        continue    
+
+                    # ---------------------------
+                    # PRODUCT LINK
+                    # ---------------------------
+                    link_element = product.query_selector("h2 a")
+
+                    if not link_element:
+                        continue
+
+                    href = link_element.get_attribute("href")
+
+                    if not href:
+                        continue
+
+                    product_url = "https://www.amazon.in" + href
+
+                    # ---------------------------
+                    # PRICE
+                    # ---------------------------
+                    price_element = product.query_selector("span.a-offscreen")
+
+                    if price_element:
+
+                        price_text = (
+                            price_element.inner_text()
+                            .replace(",", "")
+                            .replace(",", "")
+                            .strip()
+                        )
+
+                        try:
+                            price_value = float(price_text)
+                            price_display = f"₹{price_text}"
+
+                        except:
+                            price_value = 0
+                            price_display = "Check price"
+
+                    else:
+                        price_value = 0
+                        price_display = "Check price"
+
+                    # ---------------------------
+                    # IMAGE
+                    # ---------------------------
+                    image_element = product.query_selector("img.s-image")
+
+                    image = (
+                        image_element.get_attribute("src")
+                        if image_element else ""
+                    )
+
+                    # ---------------------------
+                    # ADD RESULT
+                    # ---------------------------
+                    product_key = generate_product_key(title)
+
+                    if not product_key:
+                        continue
+
+                    results.append({
+                        "title": title,
+                        "product_key": product_key,
+                        "platform": "Amazon",
+                        "price_value": price_value,
+                        "price_display": price_display,
+                        "url": product_url,
+                        "image": image
+                    })
+
+                except Exception as e:
+                    print("Loop error:", e)
+                    continue
+
+                # Limit results
+                if len(results) >= 8:
+                    break
+
+            browser.close()
+
+        print("Amazon returned:", len(results))
+
+        return results
+
+    except Exception as e:
+        print("Amazon scraping error:", e)
+        return []
