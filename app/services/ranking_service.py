@@ -1,6 +1,6 @@
 import re
 from rapidfuzz import fuzz
-from app.utils.text_utils import normalize_text, extract_product_info
+from app.utils.text_utils import normalize_text, extract_product_info, _BRAND_TOKEN
 
 
 # -----------------------------
@@ -241,6 +241,52 @@ def _model_matches(q_model, t_model):
     return _variant_of(q_model) == _variant_of(t_model)
 
 
+def _laptop_accessory_signal(text):
+    """True when a title clearly describes a laptop ACCESSORY, not a laptop."""
+    return any(
+        t in _merged_tokens(text)
+        for t in (
+            "bag", "backpack", "rucksack", "sleeve", "case", "cover", "pouch",
+            "mouse", "keyboard", "monitor", "stand", "charger", "adapter",
+            "cable", "dock", "cooling", "skin", "sticker", "guard", "filter",
+        )
+    )
+
+
+# ASUS laptop product lines.  A real ASUS laptop may omit the literal word
+# "laptop" (e.g. "ASUS Vivobook 15", "ASUS Chromebook"), so these line names
+# count as laptop-type signals.
+_ASUS_LAPTOP_LINES = {
+    "vivobook", "expertbook", "zenbook", "proart", "tuf", "rog", "chromebook",
+}
+
+
+def _is_laptop_device(text):
+    """True when a title describes an actual laptop device, not an accessory."""
+    tokens = set(_merged_tokens(text))
+    if any(t in _laptop_tokens for t in tokens):
+        return not _laptop_accessory_signal(text)
+    return any(t in tokens for t in _ASUS_LAPTOP_LINES) and not _laptop_accessory_signal(text)
+
+
+# Words that indicate the product itself is a laptop (a device, not a bag).
+_laptop_tokens = {"laptop", "notebook"}
+
+
+def _query_brand_token(query):
+    """The canonical brand token in a query (e.g. 'asus'), or None."""
+    for t in _meaningful_query_tokens(query):
+        if t in _BRAND_TOKEN:
+            return _BRAND_TOKEN[t]
+    return None
+
+
+def _query_has_laptop_type(query):
+    """True when the query itself asks for laptop-type products."""
+    meaningful = set(_meaningful_query_tokens(query))
+    return bool(meaningful & (_laptop_tokens | {"chromebook"}))
+
+
 def filter_irrelevant_products(products, query):
     """
     Remove products that are clearly off-topic for the given query.
@@ -294,6 +340,12 @@ def filter_irrelevant_products(products, query):
     if not query_tokens:
         return products
 
+    # Brand + laptop-type query ("laptop asus" / "asus laptop"): only that
+    # brand's actual laptop devices qualify — never bags, backpacks, sleeves,
+    # mouse/keyboard/monitor, or other accessories, and never other brands.
+    q_brand = _query_brand_token(query)
+    brand_typed = bool(q_brand and _query_has_laptop_type(query))
+
     title_norms = [
         (product, set(_merged_tokens(product.get("title", ""))))
         for product in products
@@ -301,7 +353,13 @@ def filter_irrelevant_products(products, query):
 
     relevant = []
     for product, title_words in title_norms:
-        if any(t in title_words for t in query_tokens):
+        if brand_typed:
+            if q_brand not in title_words:
+                continue
+            if not _is_laptop_device(product.get("title", "")):
+                continue
+            relevant.append(product)
+        elif any(t in title_words for t in query_tokens):
             relevant.append(product)
 
     return relevant

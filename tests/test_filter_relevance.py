@@ -408,3 +408,93 @@ def test_case_h_s24_plus_is_canonicalised_to_s24_plus():
     model2 = extract_product_info(
         "Samsung Galaxy S24 Plus 5G (Onyx Black, 256 GB)")[1]
     assert model2 == "s24-plus"
+
+
+# ---------------------------------------------------------------------------
+# CASE I — brand + laptop-type queries ("laptop asus" / "asus laptop") keep
+# only that brand's actual laptop devices, never accessories or other brands.
+# ---------------------------------------------------------------------------
+
+_LAPTOP_POOL = [
+    _offer("ASUS Vivobook 15 Intel Core i3 12th Gen 15.6 inch Laptop",
+           "asus-vivobook-15", "Amazon", 32990),
+    _offer("ASUS ExpertBook B1400 Thin and Light Laptop",
+           "asus-expertbook-b1400", "Amazon", 40990),
+    _offer("ASUS TUF Gaming F15 Laptop Core i5",
+           "asus-tuf-f15", "Flipkart", 56990),
+    _offer("ASUS Zenbook 14 OLED Core Ultra 7",
+           "asus-zenbook-14", "Amazon", 89990),
+    _offer("ASUS Chromebook Plus CX34 Intel Core i3 14 inch",
+           "asus-chromebook-cx34", "Flipkart", 24990),
+    _offer("ASUS Laptop Backpack 15.6 Inch Waterproof",
+           "asus-laptop-backpack", "Amazon", 1299),
+    _offer("ASUS Laptop Bag for Men", "asus-laptop-bag-men", "Myntra", 899),
+    _offer("ASUS Laptop Sleeve 15.6 inch", "asus-laptop-sleeve", "Myntra", 799),
+    _offer("ASUS Backpack for College", "asus-backpack-college", "Flipkart", 999),
+    _offer("ASUS Wireless Mouse", "asus-wireless-mouse", "Amazon", 1499),
+    _offer("ASUS Keyboard", "asus-keyboard", "Flipkart", 2499),
+    _offer("ASUS Monitor 24 inch", "asus-monitor-24", "Amazon", 10990),
+    _offer("HP Laptop 15s Core i5", "hp-laptop-15s", "Flipkart", 38990),
+    _offer("Lenovo IdeaPad Slim Laptop", "lenovo-ideapad-slim", "Amazon", 35990),
+]
+
+
+@pytest.mark.parametrize("query", ["laptop asus", "asus laptop"])
+def test_case_i_brand_laptop_query_keeps_only_asus_laptops(query):
+    kept = filter_irrelevant_products(_LAPTOP_POOL, query)
+    kept_titles = {t for t in _kept_titles(kept)}
+
+    # ASUS laptops (incl. Chromebook as a laptop) are kept.
+    assert any("ASUS Vivobook" in t for t in kept_titles)
+    assert any("ASUS ExpertBook" in t for t in kept_titles)
+    assert any("ASUS TUF Gaming" in t for t in kept_titles)
+    assert any("ASUS Zenbook" in t for t in kept_titles)
+    assert any("ASUS Chromebook" in t for t in kept_titles)
+
+    # ASUS accessories and other-brand laptops are removed.
+    assert kept_titles == {
+        "ASUS Vivobook 15 Intel Core i3 12th Gen 15.6 inch Laptop",
+        "ASUS ExpertBook B1400 Thin and Light Laptop",
+        "ASUS TUF Gaming F15 Laptop Core i5",
+        "ASUS Zenbook 14 OLED Core Ultra 7",
+        "ASUS Chromebook Plus CX34 Intel Core i3 14 inch",
+    }
+
+
+@pytest.mark.parametrize("query", ["laptop asus", "asus laptop"])
+def test_case_i_brand_laptop_query_removes_accessories_and_other_brands(query):
+    kept_titles = _kept_titles(filter_irrelevant_products(_LAPTOP_POOL, query))
+    assert not any("Backpack" in t for t in kept_titles)
+    assert not any("Laptop Bag" in t for t in kept_titles)
+    assert not any("Sleeve" in t for t in kept_titles)
+    assert not any("Mouse" in t for t in kept_titles)
+    assert not any("Keyboard" in t for t in kept_titles)
+    assert not any("Monitor" in t for t in kept_titles)
+    assert not any("HP Laptop" in t for t in kept_titles)
+    assert not any("Lenovo" in t for t in kept_titles)
+
+
+# ---------------------------------------------------------------------------
+# CASE J — preservation: "laptop" (all brands), "asus" (all ASUS products),
+# and "laptop bag" (explicit accessory query) keep their existing behavior.
+# ---------------------------------------------------------------------------
+
+def test_case_j_laptop_alone_is_not_asus_only():
+    kept_titles = _kept_titles(filter_irrelevant_products(_LAPTOP_POOL, "laptop"))
+    assert any("HP Laptop" in t for t in kept_titles)
+    assert any("Lenovo" in t for t in kept_titles)
+    assert any("ASUS Vivobook" in t for t in kept_titles)
+
+
+def test_case_j_asus_alone_keeps_all_asus_products_including_accessories():
+    kept_titles = _kept_titles(filter_irrelevant_products(_LAPTOP_POOL, "asus"))
+    assert any("ASUS Wireless Mouse" in t for t in kept_titles)
+    assert any("ASUS Keyboard" in t for t in kept_titles)
+    assert any("ASUS Backpack" in t for t in kept_titles)
+    assert any("ASUS Vivobook" in t for t in kept_titles)
+
+
+def test_case_j_laptop_bag_explicit_still_returns_bags():
+    kept_titles = _kept_titles(filter_irrelevant_products(_LAPTOP_POOL, "laptop bag"))
+    assert any("Laptop Bag" in t for t in kept_titles)
+    assert any("Laptop Backpack" in t for t in kept_titles)
