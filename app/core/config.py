@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     amazon_base_url: str = "https://www.amazon.in"
     flipkart_base_url: str = "https://www.flipkart.com"
     myntra_base_url: str = "https://www.myntra.com"
+    ajio_base_url: str = "https://www.ajio.com"
     user_agent: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
     headless_browser: bool = False
     page_load_timeout_ms: int = 60000
@@ -44,6 +45,11 @@ class Settings(BaseSettings):
     # --- Affiliates --------------------------------------------------------
     affiliate_base_url: str = "https://www.amazon.in"
     amazon_affiliate_tag: str = "dealcompare19-21"
+    # Optional tags for the other platforms.  When empty, offers from that
+    # platform are returned with their original (untagged) URL.
+    flipkart_affiliate_tag: str = ""
+    myntra_affiliate_tag: str = ""
+    ajio_affiliate_tag: str = ""
 
     # --- CORS ---------------------------------------------------------------
     # Comma-separated origin allow-list. Defaults keep local Vite dev servers

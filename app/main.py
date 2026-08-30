@@ -14,6 +14,7 @@ from app.core.errors import (
 from app.services.search_service import search_all
 from app.services.ranking_service import filter_irrelevant_products
 from app.aggregator.aggregator import aggregate_products
+from app.services.affiliate_service import enrich_results
 
 logging.basicConfig(
     level=logging.INFO,
@@ -96,6 +97,11 @@ async def search(query: str = Query(...)):
             ERROR_INTERNAL,
             "An unexpected internal error occurred while processing results.",
         )
+
+    # Add affiliate tags to offer urls purely at the response boundary.  This
+    # runs AFTER aggregation so grouping/dedup/best-price were computed on the
+    # original urls; it never changes card identity, prices, or offer shape.
+    compared = enrich_results(compared)
 
     return {
         "message": "Products compared successfully",
