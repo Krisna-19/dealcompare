@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en-IN">
+<head>
+<meta charset="utf-8">
+<title>Search: samsung galaxy s24 - Ajio</title>
+</head>
+<body>
+<!-- Deterministic stand-in for an Ajio search-result grid.
+     Each product card carries the structural anchors the Ajio DOM extractor
+     keys on (a product anchor href*="/p/", brand/name text, a price, an
+     image).  Two malformed cards (no price / no link) are included to prove
+     they are skipped, never fabricated. -->
+
+<div class="search-grid">
+
+  <!-- 1: valid Samsung Galaxy S24 phone -->
+  <div class="item">
+    <div>
+      <a href="/samsung-galaxy-s24-5g-mobile-onyx-black/p/440001006">
+        <img src="https://assets.ajio.com/img/s24.jpg" alt="Samsung Galaxy S24 5G">
+        <div class="brand">Samsung</div>
+        <h3 class="name">Samsung Galaxy S24 5G Mobile (Onyx Black, 128 GB)</h3>
+        <span class="price">₹74,990</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- 2: valid Samsung Galaxy S24 case (base accessory) -->
+  <div class="item">
+    <div>
+      <a href="/casemate-samsung-galaxy-s24-back-case/p/440002011">
+        <img src="https://assets.ajio.com/img/case.jpg" alt="Case">
+        <div class="brand">CaseMate</div>
+        <h3 class="name">CaseMate Samsung Galaxy S24 Back Case Compatible</h3>
+        <span class="price">₹1,199</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- 3: valid Samsung Galaxy S24 Ultra (must stay separated from base) -->
+  <div class="item">
+    <div>
+      <a href="/samsung-galaxy-s24-ultra-5g-titanium/p/440003020">
+        <img src="https://assets.ajio.com/img/ultra.jpg" alt="Ultra">
+        <div class="brand">Samsung</div>
+        <h3 class="name">Samsung Galaxy S24 Ultra 5G (Titanium Black, 256 GB)</h3>
+        <span class="price">₹124,990</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- 4: malformed - title but NO price -> must be skipped -->
+  <div class="item">
+    <div>
+      <a href="/brand-a-no-price/p/440004000">
+        <img src="https://assets.ajio.com/img/a.jpg" alt="A">
+        <div class="brand">Brand A</div>
+        <h3 class="name">Brand A Product Without A Price</h3>
+        <span class="price">Check price</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- 5: malformed - price but NO product link -> must be skipped -->
+  <div class="item">
+    <div>
+      <img src="https://assets.ajio.com/img/b.jpg" alt="B">
+      <div class="brand">Brand B</div>
+      <h3 class="name">Brand B Product Without A Link</h3>
+      <span class="price">₹2,999</span>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
