@@ -26,6 +26,8 @@ def test_defaults_preserve_previous_hardcoded_values():
     assert s.http_backoff_factor == 1.0
     assert s.http_timeout_seconds == 8.0
     assert s.group_similarity_threshold == 0.6
+    assert s.search_cache_enabled is True
+    assert s.search_cache_ttl_seconds == 300.0
     assert s.amazon_affiliate_tag == "dealcompare19-21"
     assert s.allowed_origins_list == [
         "http://localhost:5173",

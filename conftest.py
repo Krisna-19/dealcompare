@@ -8,6 +8,21 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _reset_search_cache():
+    """
+    Fresh search response cache for every test.
+
+    Several suites reuse the same query string (e.g. "iphone 15") with
+    different mocked scrapers; the search cache must never leak a result
+    from one test into another.
+    """
+    from app.services.search_service import clear_search_cache
+    clear_search_cache()
+    yield
+    clear_search_cache()
+
+
 @pytest.fixture
 def make_product():
     """

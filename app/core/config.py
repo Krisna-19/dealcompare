@@ -42,6 +42,13 @@ class Settings(BaseSettings):
     # --- Grouping / ranking ----------------------------------------------
     group_similarity_threshold: float = 0.6
 
+    # --- Search cache ------------------------------------------------------
+    # Repeated/identical queries short-circuit the live browser scrape
+    # pipeline for search_cache_ttl_seconds.  Only successful (non-empty)
+    # results are cached; empty/failed searches are never cached.
+    search_cache_enabled: bool = True
+    search_cache_ttl_seconds: float = 300.0
+
     # --- Affiliates --------------------------------------------------------
     affiliate_base_url: str = "https://www.amazon.in"
     amazon_affiliate_tag: str = "dealcompare19-21"
