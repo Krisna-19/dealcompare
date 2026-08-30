@@ -1,0 +1,12 @@
+# Environment / secrets
+.env
+
+# Python artifacts
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Tooling
+.ruff_cache/
+.mypy_cache/

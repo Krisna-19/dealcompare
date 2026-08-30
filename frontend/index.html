@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>DealCompare - Compare Prices</title>
+
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+    <header class="header">
+        <div class="logo">DealCompare</div>
+        <div class="tagline">Compare. Save. Shop Smart.</div>
+    </header>
+
+    <main class="container">
+
+        <section class="search-section">
+
+            <h1>Find the Best Deal</h1>
+
+            <p>
+                Search across multiple online stores and find the best price.
+            </p>
+
+            <div class="search-box">
+
+                <input
+                    type="text"
+                    id="searchInput"
+                    placeholder="Search for a product..."
+                >
+
+                <button id="searchButton">
+                    Search
+                </button>
+
+            </div>
+
+        </section>
+
+        <section id="loading" class="loading hidden">
+            Searching for the best deals...
+        </section>
+
+        <section id="error" class="error hidden"></section>
+
+        <section id="resultsSection" class="results-section hidden">
+
+            <h2>Comparison Results</h2>
+
+            <div id="filterControls" class="filter-controls">
+                <div class="filter-group">
+                    <label for="sortSelect">Sort By</label>
+                    <select id="sortSelect">
+                        <option value="best-deal">Best Deal</option>
+                        <option value="low-price">Lowest Price</option>
+                        <option value="high-price">Highest Price</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Store</label>
+                    <div class="store-filters" id="storeFilters">
+                        <button class="store-btn active" data-store="all">All Stores</button>
+                        <button class="store-btn" data-store="Amazon">Amazon</button>
+                        <button class="store-btn" data-store="Flipkart">Flipkart</button>
+                        <button class="store-btn" data-store="Myntra">Myntra</button>
+                        <button class="store-btn" data-store="Ajio">Ajio</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="noFilterResults" class="no-filter-results hidden">No products found for this store.</div>
+
+            <div id="noResults" class="no-filter-results hidden">
+                No products found. Try a different search.
+            </div>
+
+            <div id="results" class="results-grid"></div>
+
+        </section>
+
+    </main>
+
+    <footer>
+        <p>© 2026 DealCompare</p>
+    </footer>
+
+    <script src="js/app.js"></script>
+
+</body>
+</html>

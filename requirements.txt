@@ -1,0 +1,44 @@
+# DealCompare API - runtime dependencies
+#
+# Direct dependencies (imported by app code):
+#   fastapi, uvicorn        - web framework + ASGI server (app/main.py)
+#   playwright              - Amazon scraper browser automation (app/scrapers/amazon.py)
+#   rapidfuzz               - fuzzy title matching (app/services/ranking_service.py)
+#   requests, urllib3       - HTTP client with retries (app/utils/http_client.py)
+#   pydantic-settings       - env-based configuration (app/core/config.py)
+#   beautifulsoup4,
+#   fake-useragent          - reserved for upcoming Myntra/Ajio/Flipkart scrapers
+#
+# Everything below is pinned from a verified working environment
+# (Python 3.13, Windows). After installing:
+#   playwright install chromium
+# Then run:
+#   uvicorn app.main:app
+
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.14.2
+beautifulsoup4==4.15.0
+certifi==2026.7.22
+charset-normalizer==3.5.1
+click==8.4.2
+colorama==0.4.6
+fake-useragent==2.2.0
+fastapi==0.128.0
+greenlet==3.5.5
+h11==0.16.0
+idna==3.19
+playwright==1.62.0
+pydantic==2.13.4
+pydantic_core==2.46.4
+pydantic-settings==2.15.0
+python-dotenv==1.2.3
+pyee==13.0.1
+RapidFuzz==3.14.5
+requests==2.34.2
+soupsieve==2.9.2
+starlette==0.50.0
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+urllib3==2.7.0
+uvicorn==0.40.0
