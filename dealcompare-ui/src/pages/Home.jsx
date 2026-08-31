@@ -2,14 +2,44 @@ import { useState } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
+/* CATEGORY → ICON MAP */
+const CATEGORY_ICONS = {
+  Fashion: "👕",
+  Electronics: "💻",
+  Beauty: "🧴",
+  General: "🛒",
+};
+
+const toNumber = (value) => {
+  if (value === null || value === undefined || value === "") return NaN;
+  return Number(value);
+};
+
+function cheapestIndexes(offers) {
+  const numeric = offers.map((offer) => toNumber(offer.price_value));
+  const finite = numeric.filter(Number.isFinite);
+  if (finite.length === 0) return new Set();
+
+  const min = Math.min(...finite);
+  const set = new Set();
+  numeric.forEach((value, index) => {
+    if (Number.isFinite(value) && value === min) set.add(index);
+  });
+  return set;
+}
+
 export default function Home() {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [results, setResults] = useState([]);
+  const [category, setCategory] = useState("General");
 
-  const searchDeals = async () => {
-    if (!query.trim()) return;
+  const searchDeals = async (event) => {
+    event.preventDefault();
+
+    const trimmed = query.trim();
+    if (!trimmed) return;
 
     setLoading(true);
     setError("");
@@ -17,17 +47,20 @@ export default function Home() {
 
     try {
       const res = await fetch(
-        `${API_BASE}/search?query=${encodeURIComponent(query)}`
+        `${API_BASE}/search?query=${encodeURIComponent(trimmed)}`
       );
+
+      if (!res.ok) throw new Error("API error");
 
       const data = await res.json();
 
       if (data.results && data.results.length > 0) {
-        setResults(data.results.slice(0, 3)); // TOP 3 PRODUCTS
+        setResults(data.results);
+        setCategory(data.category || "General");
       } else {
-        setError("No deals found");
+        setError("No products found");
       }
-    } catch (err) {
+    } catch {
       setError("Failed to fetch deals");
     } finally {
       setLoading(false);
@@ -38,24 +71,25 @@ export default function Home() {
     <div className="container">
       {/* HEADER */}
       <h1 className="title">
-        DealCompare <span role="img">🔥</span>
+        DealCompare <span role="img" aria-label="fire">🔥</span>
       </h1>
-      <p className="subtitle">
-        Compare prices across multiple platforms
-      </p>
+      <p className="subtitle">Compare prices across multiple platforms</p>
 
       {/* SEARCH */}
-      <div className="search-box">
+      <form className="search-box" onSubmit={searchDeals}>
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search product (eg: laptop bag, serum, t-shirt)"
-          onKeyDown={(e) => e.key === "Enter" && searchDeals()}
+          aria-label="Search products"
         />
-        <button onClick={searchDeals} disabled={loading}>
+        <button type="submit" disabled={loading}>
           {loading ? "Searching..." : "Search"}
         </button>
-      </div>
+      </form>
+
+      {/* LOADER */}
+      {loading && <p className="loading">Searching best deals…</p>}
 
       {/* ERROR */}
       {error && <div className="error-box">⚠️ {error}</div>}
@@ -63,74 +97,79 @@ export default function Home() {
       {/* RESULTS */}
       {results.length > 0 && (
         <div className="results">
-          {results.map((item, index) => (
-            <div className="card" key={index}>
-              <h3>{item.product_name}</h3>
+          {results.map((item, index) => {
+            const lowest = cheapestIndexes(item.offers);
 
-              {/* BEST DEAL */}
-              {item.best_deal && (
-                <div className="best-deal">
-                  <p>
-                    <b>{item.best_deal.platform}</b> – ₹{item.best_deal.price}
-                  </p>
-                  <a
-                    href={item.best_deal.product_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Visit {item.best_deal.platform}
-                  </a>
+            return (
+              <div className="card" key={index}>
+                {/* CATEGORY BADGE */}
+                <div className="category-badge">
+                  {CATEGORY_ICONS[category]} {category}
                 </div>
-              )}
 
-              {/* OTHER OFFERS */}
-              {item.other_offers?.length > 0 && (
-                <div className="other-offers">
-                  <p><b>Other offers:</b></p>
-                  {item.other_offers.map((offer, i) => (
-                    <div key={i}>
-                      {offer.platform} – ₹{offer.price}{" "}
+                {/* IMAGE */}
+                {item.image ? (
+                  <img
+                    className="card-image"
+                    src={item.image}
+                    alt={item.title}
+                    onError={(e) => (e.currentTarget.style.display = "none")}
+                  />
+                ) : (
+                  <div className="card-image placeholder">
+                    No image available
+                  </div>
+                )}
+
+                <h3>{item.title}</h3>
+
+                {/* BEST DEAL */}
+                {item.best_price && item.best_platform && (
+                  <div className="best-deal">
+                    <p>
+                      <b>Best price:</b> {item.best_price} on{" "}
+                      {item.best_platform}
+                    </p>
+                    <a
+                      href={item.best_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Visit {item.best_platform}
+                    </a>
+                  </div>
+                )}
+
+                {/* ALL OFFERS */}
+                <div className="offers">
+                  {item.offers.map((offer, i) => (
+                    <div className="offer-row" key={i}>
+                      <span className="platform">{offer.platform}</span>
+
+                      <span className="price">
+                        {offer.price_display}
+                        {lowest.has(i) && (
+                          <span className="lowest-tag">Lowest</span>
+                        )}
+                      </span>
+
                       <a
-                        href={offer.product_url}
+                        className="btn"
+                        href={offer.url}
                         target="_blank"
                         rel="noopener noreferrer"
+                        aria-label={`Visit ${offer.platform}`}
                       >
                         Visit
                       </a>
                     </div>
                   ))}
                 </div>
-              )}
-
-              {/* AMAZON FALLBACK */}
-              {item.amazon_affiliate_url && (
-                <div className="amazon">
-                  <a
-                    href={item.amazon_affiliate_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    View on Amazon
-                  </a>
-                </div>
-              )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
       )}
-
-      {/* FOOTER / AMAZON DISCLOSURE */}
-      <div className="footer">
-        <p>
-          As an Amazon Associate, we earn from qualifying purchases.
-        </p>
-
-        <div className="footer-links">
-          <a href="/privacy">Privacy Policy</a>
-          <a href="/terms">Terms & Conditions</a>
-          <a href="/affiliate">Affiliate Disclosure</a>
-        </div>
-      </div>
     </div>
   );
 }
