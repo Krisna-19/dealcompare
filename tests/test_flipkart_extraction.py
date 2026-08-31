@@ -6,10 +6,21 @@ No network access — parses __NEXT_DATA__ JSON directly.
 import json
 import pathlib
 
-from app.scrapers.flipkart import _normalise_next_data_product
+import pytest
+
+from app.core.config import get_settings
+from app.scrapers.flipkart import _absolute_url, _normalise_next_data_product
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
 NEXT_DATA_FILE = FIXTURES / "flipkart_next_data.json"
+
+
+@pytest.fixture(autouse=True)
+def _clear_settings_cache():
+    """Env-var tests mutate settings; never leak cache across tests."""
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 def _load_next_data():
@@ -134,3 +145,57 @@ def test_zero_price_returns_check_price():
     assert result is not None
     assert result["price_display"] == "Check price"
     assert result["price_value"] == 0
+
+
+# --- URL normalisation -----------------------------------------------------
+
+def test_normalise_uses_configured_base_url(monkeypatch):
+    monkeypatch.setenv("FLIPKART_BASE_URL", "https://flipkart.example.test")
+    raw = {"productBrand": "Test Product", "productUrl": "/test/p/123"}
+
+    result = _normalise_next_data_product(raw)
+
+    assert result is not None
+    assert result["url"] == "https://flipkart.example.test/test/p/123"
+
+
+def test_normalise_relative_url_without_leading_slash(monkeypatch):
+    """A leading-slash-less productUrl must not produce a joined-skeleton URL."""
+    monkeypatch.setenv("FLIPKART_BASE_URL", "https://flipkart.example.test")
+    raw = {"productBrand": "Test Product", "productUrl": "product/p/456"}
+
+    result = _normalise_next_data_product(raw)
+
+    assert result is not None
+    assert result["url"] == "https://flipkart.example.test/product/p/456"
+
+
+def test_normalise_absolute_product_url_passes_through(monkeypatch):
+    absolute = "https://www.flipkart.com/mobile/p/itm789?pid=XYZ"
+    monkeypatch.setenv("FLIPKART_BASE_URL", "https://flipkart.example.test")
+    raw = {"productBrand": "Test Product", "productUrl": absolute}
+
+    result = _normalise_next_data_product(raw)
+
+    assert result is not None
+    assert result["url"] == absolute
+
+
+def test_normalise_pid_fallback_uses_configured_base(monkeypatch):
+    monkeypatch.setenv("FLIPKART_BASE_URL", "https://flipkart.example.test")
+    raw = {"productBrand": "Test Product", "productId": "XYZ123"}
+
+    result = _normalise_next_data_product(raw)
+
+    assert result is not None
+    assert result["url"] == "https://flipkart.example.test/p/XYZ123"
+
+
+def test_absolute_url_helper_edge_cases(monkeypatch):
+    monkeypatch.setenv("FLIPKART_BASE_URL", "https://flipkart.example.test/")
+    assert _absolute_url("/mobile/p/123") == "https://flipkart.example.test/mobile/p/123"
+    assert _absolute_url("mobile/p/123") == "https://flipkart.example.test/mobile/p/123"
+    assert _absolute_url("https://other.example.com/x") == "https://other.example.com/x"
+    assert _absolute_url(None) is None
+    assert _absolute_url("") is None
+    assert _absolute_url("   ") is None

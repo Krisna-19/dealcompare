@@ -36,6 +36,11 @@ LINK_SELECTORS = [
 PRICE_SELECTOR = "span.a-offscreen"
 IMAGE_SELECTOR = "img.s-image"
 
+# A valid amount is only bare digits (optionally a decimal fraction).  Prose
+# like "No Cost EMI" or "Free Delivery" fails this check and must never become
+# a product price.
+_AMOUNT_RE = re.compile(r"^\d+(?:\.\d+)?$")
+
 
 def _first_text(item, selectors):
     """Return the first non-empty inner_text among selectors, else None."""
@@ -49,6 +54,21 @@ def _first_text(item, selectors):
             if text:
                 return text
     return None
+
+
+def _all_text(item, selector):
+    """Yield the trimmed inner_text of every element matching *selector*."""
+    try:
+        elements = item.query_selector_all(selector)
+    except Exception:
+        return
+    for element in elements:
+        try:
+            text = element.inner_text().strip()
+        except Exception:
+            continue
+        if text:
+            yield text
 
 
 def _first_attribute(item, selectors, attribute):
@@ -65,13 +85,60 @@ def _first_attribute(item, selectors, attribute):
     return None
 
 
+def _absolute_url(href):
+    """
+    Join a (possibly relative) Amazon href onto the configured base host.
+
+    Search-result links are relative ("/dp/<ASIN>...", "/sspa/click?...");
+    prefix the configured amazon_base_url instead of a hardcoded hostname so
+    every product URL is valid for the configured storefront.
+    """
+    if not href:
+        return None
+    if href.startswith("http://") or href.startswith("https://"):
+        return href
+    base = get_settings().amazon_base_url.rstrip("/")
+    return base + ("/" if not href.startswith("/") else "") + href
+
+
+def _parse_offscreen_price(text):
+    """
+    Parse one a-offscreen snippet into (value, display) or None.
+
+    Only a bare currency amount ("₹59,900", "Rs. 59,900") is a price.  Amazon
+    stores other screen-reader copy in the same spans — "No Cost EMI", "Free
+    Delivery", "EMI ₹4,999/month" — and that prose must never be minted into
+    a price.  Returns None when no valid positive amount can be extracted so
+    the caller keeps the honest "Check price" contract.
+    """
+    if not text:
+        return None
+    stripped = text.strip()
+    without_currency = re.sub(
+        r"^(?:[₹\u20b9]\s*|Rs\.?\s*|INR\s*)", "", stripped, flags=re.IGNORECASE
+    ).strip()
+    collapsed = re.sub(r"[\s,]", "", without_currency)
+    if not collapsed or not _AMOUNT_RE.fullmatch(collapsed):
+        return None
+    try:
+        value = float(collapsed)
+    except ValueError:
+        return None
+    if value <= 0:
+        return None
+    # Display keeps the historical shape (deduplicated digits, no commas).
+    return value, f"₹{collapsed}"
+
+
 def extract_product_details(item):
     """
     Extract raw product fields from one search-result element.
 
     Returns a dict with title/product_url/price_value/price_display/image,
     or None when the item has no usable title and link (e.g. markup change).
-    A missing price keeps the historical contract (0 / "Check price").
+    A missing or unparseable price keeps the historical contract (0 /
+    "Check price"); unrelated copy like "No Cost EMI" or "Free Delivery" is
+    never treated as a price.
     """
     title = _first_text(item, TITLE_SELECTORS)
     href = _first_attribute(item, LINK_SELECTORS, "href")
@@ -79,26 +146,21 @@ def extract_product_details(item):
     if not title or not href:
         return None
 
+    product_url = _absolute_url(href)
+
     price_value = 0
     price_display = "Check price"
-
-    price_text = _first_text(item, [PRICE_SELECTOR])
-    if price_text:
-        # Strip currency symbols, separators and whitespace defensively.
-        cleaned = re.sub(r"[^\d.]", "", price_text)
-        try:
-            parsed = float(cleaned) if cleaned else 0
-        except ValueError:
-            parsed = 0
-        if parsed > 0:
-            price_value = parsed
-            price_display = f"₹{cleaned}"
+    for price_text in _all_text(item, PRICE_SELECTOR):
+        parsed = _parse_offscreen_price(price_text)
+        if parsed is not None:
+            price_value, price_display = parsed
+            break
 
     image = _first_attribute(item, [IMAGE_SELECTOR], "src") or ""
 
     return {
         "title": title,
-        "product_url": "https://www.amazon.in" + href,
+        "product_url": product_url,
         "price_value": price_value,
         "price_display": price_display,
         "image": image,

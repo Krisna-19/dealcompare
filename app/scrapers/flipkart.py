@@ -32,6 +32,24 @@ def build_search_url(query: str) -> str:
     return f"{base}/search?q={encoded_query}"
 
 
+def _absolute_url(url):
+    """Normalise a (possibly relative) Flipkart URL onto the configured base.
+
+    Both __NEXT_DATA__ and the DOM fallback ship relative paths
+    ("/mobile/p/itm123?pid=...").  Prefix the configured base host so every
+    offer URL is absolute.  Absolute URLs pass through unchanged.
+    """
+    if not url:
+        return None
+    u = str(url).strip()
+    if not u:
+        return None
+    if u.startswith("http://") or u.startswith("https://"):
+        return u
+    base = get_settings().flipkart_base_url.rstrip("/")
+    return base + ("/" if not u.startswith("/") else "") + u
+
+
 # ---------------------------------------------------------------------------
 # Strategy 1: __NEXT_DATA__ JSON extraction
 # ---------------------------------------------------------------------------
@@ -152,12 +170,9 @@ def _normalise_next_data_product(raw):
     if not url:
         pid = raw.get("productId", "") or raw.get("id", "")
         if pid:
-            url = f"https://www.flipkart.com/p/{pid}"
+            url = f"/p/{pid}"
 
-    # Ensure absolute URL
-    if url and not url.startswith("http"):
-        url = f"https://www.flipkart.com{url}"
-
+    url = _absolute_url(url)
     if not url:
         return None
 
@@ -374,6 +389,10 @@ def search_flipkart(query: str):
                     if len(title.split()) < 2:
                         continue
 
+                    url = _absolute_url(raw["url"])
+                    if not url:
+                        continue
+
                     product_key = generate_product_key(title)
                     if not product_key:
                         continue
@@ -388,7 +407,7 @@ def search_flipkart(query: str):
                         "platform": "Flipkart",
                         "price_value": raw["price_value"],
                         "price_display": raw["price_display"],
-                        "url": raw["url"],
+                        "url": url,
                         "image": raw["image"],
                     })
 
