@@ -15,6 +15,7 @@ Status-code policy:
     200  success            -> {"message": "Products compared successfully", "results": [...]}
     200  honest empty       -> {"message": "No products found", "results": []}
     422  invalid_query      -> missing / blank / whitespace-only 'query' parameter
+    429  rate_limited       -> per-IP rate limit exceeded (only when enabled)
     502  upstream_scrape_failed -> product-source pipeline failed (not a fake result)
     500  internal_error     -> any unexpected backend exception (details logged
                                 server-side only, never in the response)
@@ -25,6 +26,7 @@ from fastapi import HTTPException
 # Stable machine-readable error codes
 ERROR_INVALID_QUERY = "invalid_query"
 ERROR_UPSTREAM_SCRAPE_FAILED = "upstream_scrape_failed"
+ERROR_RATE_LIMITED = "rate_limited"
 ERROR_INTERNAL = "internal_error"
 
 

@@ -1,4 +1,6 @@
 import logging
+import time
+from collections import defaultdict, deque
 
 from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,6 +10,7 @@ from app.core.config import get_settings
 from app.core.errors import (
     ERROR_INTERNAL,
     ERROR_INVALID_QUERY,
+    ERROR_RATE_LIMITED,
     ERROR_UPSTREAM_SCRAPE_FAILED,
     http_error,
 )
@@ -47,6 +50,66 @@ app.add_middleware(
 @app.get("/")
 def home():
     return {"message": "DealCompare API running 🚀"}
+
+
+@app.get("/health")
+def health():
+    """Liveness probe for load balancers / orchestrators.
+
+    Deliberately dependency-free: the process is healthy iff it can answer.
+    This endpoint is exempt from the optional per-IP rate limiter so monitoring
+    traffic never trips protection meant for real clients.
+    """
+    return {"status": "ok"}
+
+
+# -----------------------------------------------------------------------------
+# Optional per-IP rate limiting.
+#
+# A minimal in-memory sliding-window limiter using only the standard library
+# (deque of timestamps per client IP).  It is OFF by default; enable it via
+# RATE_LIMIT_ENABLED=true when a reverse proxy supplies real client IPs.  This
+# app deliberately never trusts X-Forwarded-For, so enabling it behind a proxy
+# that does not overwrite that header would rate-limit the proxy's IP, not the
+# client.  Rejects with the standard error contract at 429.
+# -----------------------------------------------------------------------------
+
+_rate_limit_history: dict[str, deque] = defaultdict(deque)
+
+
+@app.middleware("http")
+async def per_ip_rate_limit(request: Request, call_next):
+    settings = get_settings()
+
+    if settings.rate_limit_enabled:
+        if request.url.path == "/health":
+            # Monitoring/liveness traffic bypasses the quota (still served).
+            return await call_next(request)
+
+        client_ip = request.client.host if request.client else "unknown"
+        now = time.monotonic()
+        window = settings.rate_limit_window_seconds
+        limit = settings.rate_limit_max_requests
+
+        if limit > 0:
+            history = _rate_limit_history[client_ip]
+            while history and now - history[0] > window:
+                history.popleft()
+
+            if len(history) >= limit:
+                return JSONResponse(
+                    status_code=429,
+                    content={
+                        "detail": {
+                            "error": ERROR_RATE_LIMITED,
+                            "message": "Too many requests. Please try again later.",
+                        }
+                    },
+                )
+
+            history.append(now)
+
+    return await call_next(request)
 
 
 @app.get("/search")

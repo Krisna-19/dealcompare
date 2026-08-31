@@ -24,7 +24,10 @@ class Settings(BaseSettings):
     myntra_base_url: str = "https://www.myntra.com"
     ajio_base_url: str = "https://www.ajio.com"
     user_agent: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-    headless_browser: bool = False
+    # Headless is the recommended/default production configuration: servers
+    # have no display, and a visible browser wastes resources on a deployment.
+    # Set HEADLESS_BROWSER=false only for local, visible-browser debugging.
+    headless_browser: bool = True
     page_load_timeout_ms: int = 60000
     selector_timeout_ms: int = 20000
     max_results_per_platform: int = 8
@@ -48,6 +51,25 @@ class Settings(BaseSettings):
     # results are cached; empty/failed searches are never cached.
     search_cache_enabled: bool = True
     search_cache_ttl_seconds: float = 300.0
+
+    # --- Production hardening ------------------------------------------------
+    # Global cap on simultaneous browser/scrape sessions across ALL in-flight
+    # requests (per process).  Prevents the API from spawning unlimited
+    # Chromium instances when traffic spikes.
+    scrape_concurrency_limit: int = 2
+    # Per-source wall-clock deadline while scraping.  A marketplace that
+    # exceeds this is abandoned for that response (honest empty for that
+    # source only) so one slow/stuck scraper can never stall /search.
+    source_timeout_seconds: float = 60.0
+
+    # --- Optional per-IP rate limiting ---------------------------------------
+    # In-memory sliding-window limiter applied to incoming requests by client
+    # IP.  Off by default because it never adds correctness, only protection;
+    # enable it only when a reverse proxy supplies real client IPs (this app
+    # deliberately does not trust X-Forwarded-For headers).
+    rate_limit_enabled: bool = False
+    rate_limit_max_requests: int = 60
+    rate_limit_window_seconds: float = 60.0
 
     # --- Affiliates --------------------------------------------------------
     affiliate_base_url: str = "https://www.amazon.in"

@@ -31,6 +31,50 @@ _search_cache = {}
 _search_cache_lock = Lock()
 
 
+# ---------------------------------------------------------------------------
+# Global scrape-concurrency control + per-source timeout.
+#
+# Scraping spawns real Chromium sessions (app/scrapers/*).  Without a global
+# gate, a traffic spike can open an unbounded number of browsers at once, and
+# one slow marketplace can stall an entire /search response.  Two guards cover
+# both in this module:
+#
+#   1. scrape_concurrency_limit  – an asyncio.Semaphore shared by every source
+#      of every in-flight request caps simultaneous browser sessions per
+#      process.  asyncio.Semaphore is bound to its event loop, and a module
+#      instance created at import time would be tied to whatever loop (if any)
+#      was running then; production uvicorn has exactly one loop, but tests
+#      spin up a fresh loop per asyncio.run() call.  So one semaphore is
+#      cached per running loop.
+#
+#   2. source_timeout_seconds    – each source runs under a deadline.  On
+#      expiry the source is abandoned (honest empty [] for that source) so the
+#      response never waits on it.  The underlying worker thread keeps running
+#      in the background; its concurrency slot is held until it truly finishes
+#      so the browser-session cap is never exceeded by aborted scrapes.
+#
+# Success/failure contract is unchanged: sources still return [] on any
+# failure, empty/failed searches are never cached, and only genuinely found
+# products reach the response.
+# ---------------------------------------------------------------------------
+
+_scrape_semaphore_lock = Lock()
+_scrape_semaphores = {}  # running event loop -> asyncio.Semaphore
+
+
+def _get_scrape_semaphore() -> asyncio.Semaphore:
+    """Return the loop-scoped semaphore capping scrape concurrency."""
+    settings = get_settings()
+    limit = max(1, getattr(settings, "scrape_concurrency_limit", 2))
+    loop = asyncio.get_running_loop()
+    with _scrape_semaphore_lock:
+        semaphore = _scrape_semaphores.get(loop)
+        if semaphore is None:
+            semaphore = asyncio.Semaphore(limit)
+            _scrape_semaphores[loop] = semaphore
+        return semaphore
+
+
 def _normalized_cache_key(query: str) -> str:
     """A stable cache key: case-folded and whitespace-collapsed query."""
     return " ".join((query or "").strip().lower().split())
@@ -119,9 +163,10 @@ async def search_all(query: str):
         return cached
 
     sources = _resolve_sources()
+    semaphore = _get_scrape_semaphore()
 
     results = await asyncio.gather(
-        *(_run_source_in_thread(fn, query) for _, fn in sources)
+        *(_run_source_in_thread(fn, query, semaphore) for _, fn in sources)
     )
 
     source_counts = [
@@ -142,6 +187,63 @@ async def search_all(query: str):
     return all_products
 
 
-async def _run_source_in_thread(source, query):
-    """Run a source callable in a thread with error isolation."""
-    return await asyncio.to_thread(_run_source, source, query)
+def _release_when_done(task, semaphore):
+    """Release *semaphore* exactly once, after *task* truly finishes.
+
+    A source abandoned by timeout keeps running in its worker thread; holding
+    its slot until completion keeps the global browser-session cap exact even
+    though the response has already moved on.
+    """
+    async def _reaper():
+        try:
+            await task
+        except Exception:
+            pass
+        finally:
+            semaphore.release()
+
+    try:
+        asyncio.get_running_loop().create_task(_reaper())
+    except RuntimeError:
+        # Loop shutting down mid-request: no-one is waiting on the slot any
+        # more, so drop it now rather than never.
+        semaphore.release()
+
+
+async def _run_source_in_thread(source, query, semaphore):
+    """Run a source callable under the global concurrency cap and a deadline.
+
+    A source that exceeds the deadline returns [] (honest empty for that
+    source) instead of stalling the whole /search response.
+    """
+    settings = get_settings()
+    timeout = getattr(settings, "source_timeout_seconds", 60.0)
+
+    await semaphore.acquire()
+
+    task = asyncio.create_task(asyncio.to_thread(_run_source, source, query))
+
+    released = False
+    try:
+        done, _pending = await asyncio.wait(
+            {task},
+            timeout=(timeout if timeout and timeout > 0 else None),
+        )
+        if task in done:
+            semaphore.release()
+            released = True
+            return task.result()
+    finally:
+        if not released:
+            if task.done():
+                semaphore.release()
+            else:
+                _release_when_done(task, semaphore)
+
+    name = getattr(source, "__name__", repr(source))
+    logger.warning(
+        "Source %s exceeded %.1fs timeout; returning honest empty",
+        name,
+        timeout,
+    )
+    return []

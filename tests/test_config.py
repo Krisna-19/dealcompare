@@ -17,7 +17,7 @@ def test_defaults_preserve_previous_hardcoded_values():
     s = Settings(_env_file=None)
     assert s.amazon_base_url == "https://www.amazon.in"
     assert s.user_agent == "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-    assert s.headless_browser is False
+    assert s.headless_browser is True
     assert s.page_load_timeout_ms == 60000
     assert s.selector_timeout_ms == 20000
     assert s.max_results_per_platform == 8
@@ -28,6 +28,11 @@ def test_defaults_preserve_previous_hardcoded_values():
     assert s.group_similarity_threshold == 0.6
     assert s.search_cache_enabled is True
     assert s.search_cache_ttl_seconds == 300.0
+    assert s.scrape_concurrency_limit == 2
+    assert s.source_timeout_seconds == 60.0
+    assert s.rate_limit_enabled is False
+    assert s.rate_limit_max_requests == 60
+    assert s.rate_limit_window_seconds == 60.0
     assert s.amazon_affiliate_tag == "dealcompare19-21"
     assert s.allowed_origins_list == [
         "http://localhost:5173",
@@ -40,7 +45,7 @@ def test_defaults_preserve_previous_hardcoded_values():
 
 
 def test_env_overrides_apply(monkeypatch):
-    monkeypatch.setenv("HEADLESS_BROWSER", "true")
+    monkeypatch.setenv("HEADLESS_BROWSER", "false")
     monkeypatch.setenv("MATCH_SCORE_THRESHOLD", "25")
     monkeypatch.setenv(
         "USER_AGENT", "TestAgent/1.0"
@@ -50,10 +55,25 @@ def test_env_overrides_apply(monkeypatch):
     )
 
     s = Settings(_env_file=None)
-    assert s.headless_browser is True
+    assert s.headless_browser is False
     assert s.match_score_threshold == 25
     assert s.user_agent == "TestAgent/1.0"
     assert s.amazon_affiliate_tag == "testtag-21"
+
+
+def test_hardening_settings_env_overrides(monkeypatch):
+    monkeypatch.setenv("SCRAPE_CONCURRENCY_LIMIT", "4")
+    monkeypatch.setenv("SOURCE_TIMEOUT_SECONDS", "15.5")
+    monkeypatch.setenv("RATE_LIMIT_ENABLED", "true")
+    monkeypatch.setenv("RATE_LIMIT_MAX_REQUESTS", "10")
+    monkeypatch.setenv("RATE_LIMIT_WINDOW_SECONDS", "30.0")
+
+    s = Settings(_env_file=None)
+    assert s.scrape_concurrency_limit == 4
+    assert s.source_timeout_seconds == 15.5
+    assert s.rate_limit_enabled is True
+    assert s.rate_limit_max_requests == 10
+    assert s.rate_limit_window_seconds == 30.0
 
 
 def test_csv_style_settings_parse_into_lists(monkeypatch):
