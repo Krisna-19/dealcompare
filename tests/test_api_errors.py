@@ -46,12 +46,12 @@ def test_success_returns_200_with_exact_contract(sample_products, monkeypatch):
 
     assert res.status_code == 200
     body = res.json()
-    assert set(body.keys()) == {"message", "results"}
+    assert set(body.keys()) == {"message", "category", "results"}
     assert body["message"] == "Products compared successfully"
     assert isinstance(body["results"], list)
     assert len(body["results"]) == 1  # two near-duplicates -> one group
     offer_keys = set(body["results"][0].keys())
-    assert offer_keys == {"title", "best_price", "best_platform", "best_url", "offers"}
+    assert offer_keys == {"title", "best_price", "best_platform", "best_url", "image", "offers"}
 
 
 # --- Honest empty ----------------------------------------------------------
@@ -62,7 +62,11 @@ def test_empty_results_are_honest_200_not_error(monkeypatch):
     res = client.get("/search", params={"query": "unobtainium widget xyz"})
 
     assert res.status_code == 200
-    assert res.json() == {"message": "No products found", "results": []}
+    assert res.json() == {
+        "message": "No products found",
+        "category": "General",
+        "results": [],
+    }
 
 
 # --- Invalid input ---------------------------------------------------------
@@ -100,6 +104,25 @@ def test_whitespace_only_query_is_422_invalid_query():
 
     assert res.status_code == 422
     assert res.json()["detail"]["error"] == "invalid_query"
+
+
+def test_query_over_200_chars_is_422_invalid_query(monkeypatch):
+    monkeypatch.setattr("app.main.search_all", _fake_search([]))
+
+    res = client.get("/search", params={"query": "a" * 201})
+
+    assert res.status_code == 422
+    detail = res.json()["detail"]
+    assert detail["error"] == "invalid_query"
+    assert "200" in detail["message"]
+
+
+def test_query_at_max_length_200_is_accepted(monkeypatch):
+    monkeypatch.setattr("app.main.search_all", _fake_search([]))
+
+    res = client.get("/search", params={"query": "a" * 200})
+
+    assert res.status_code == 200
 
 
 # --- Scraper / upstream failure -------------------------------------------

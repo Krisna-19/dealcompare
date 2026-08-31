@@ -8,16 +8,18 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import get_settings
 from app.core.errors import (
-    ERROR_INTERNAL,
     ERROR_INVALID_QUERY,
-    ERROR_RATE_LIMITED,
     ERROR_UPSTREAM_SCRAPE_FAILED,
+    ERROR_RATE_LIMITED,
+    ERROR_INTERNAL,
     http_error,
 )
 from app.services.search_service import search_all
 from app.services.ranking_service import filter_irrelevant_products
 from app.aggregator.aggregator import aggregate_products
 from app.services.affiliate_service import enrich_results
+from app.utils.category import detect_category
+from app.models.product_model import SearchResponse
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,6 +29,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 settings = get_settings()
+
+# A query longer than this is never meaningful for a product search and only
+# wastes scrape + match time; it is rejected with a client error.
+MAX_QUERY_LENGTH = 200
 
 app = FastAPI(
     title="DealCompare API",
@@ -112,7 +118,7 @@ async def per_ip_rate_limit(request: Request, call_next):
     return await call_next(request)
 
 
-@app.get("/search")
+@app.get("/search", response_model=SearchResponse)
 async def search(query: str = Query(...)):
 
     q = query.strip()
@@ -123,6 +129,17 @@ async def search(query: str = Query(...)):
             ERROR_INVALID_QUERY,
             "Query parameter 'query' must contain at least one non-whitespace character.",
         )
+
+    if len(q) > MAX_QUERY_LENGTH:
+        # Client error: a product query this long is not a real search; reject
+        # it before any expensive scraping starts.
+        raise http_error(
+            422,
+            ERROR_INVALID_QUERY,
+            f"Query parameter 'query' must be at most {MAX_QUERY_LENGTH} characters.",
+        )
+
+    category = detect_category(q)
 
     try:
         products = await search_all(q)
@@ -140,7 +157,8 @@ async def search(query: str = Query(...)):
         # Honest empty result: genuinely no products found.
         return {
             "message": "No products found",
-            "results": []
+            "category": category,
+            "results": [],
         }
 
     products = filter_irrelevant_products(products, q)
@@ -148,7 +166,8 @@ async def search(query: str = Query(...)):
     if not products:
         return {
             "message": "No products found",
-            "results": []
+            "category": category,
+            "results": [],
         }
 
     try:
@@ -166,9 +185,20 @@ async def search(query: str = Query(...)):
     # original urls; it never changes card identity, prices, or offer shape.
     compared = enrich_results(compared)
 
+    # Cards carry a top-level image for UI convenience: the first non-empty
+    # offer image, so no client-side derivation is needed.
+    cards = []
+    for card in compared:
+        image = next(
+            (o.get("image") or "" for o in (card.get("offers") or []) if o.get("image")),
+            "",
+        )
+        cards.append({**card, "image": image})
+
     return {
         "message": "Products compared successfully",
-        "results": compared
+        "category": category,
+        "results": cards,
     }
 
 

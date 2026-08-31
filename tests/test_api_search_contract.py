@@ -13,6 +13,18 @@ def _mock_scrapers(monkeypatch, amazon_results):
     monkeypatch.setattr(search_service, "search_ajio", lambda q: [])
 
 
+def _offer(platform, title, price, image):
+    return {
+        "title": title,
+        "product_key": "apple-iphone-15-128gb",
+        "platform": platform,
+        "price_value": price,
+        "price_display": f"\u20b9{int(price):,}",
+        "url": f"https://example.com/{platform.lower()}/{int(price)}",
+        "image": image,
+    }
+
+
 def test_search_contract_with_real_results(monkeypatch):
     """
     iPhone-15 flow end-to-end with Amazon returning real results:
@@ -71,7 +83,11 @@ def test_search_returns_honest_empty_result_without_fakes(monkeypatch):
     res = client.get("/search", params={"query": "iphone 15"})
 
     assert res.status_code == 200
-    assert res.json() == {"message": "No products found", "results": []}
+    assert res.json() == {
+        "message": "No products found",
+        "category": "Electronics",
+        "results": [],
+    }
 
 
 def test_myntra_offers_aggregate_into_correct_card(monkeypatch):
@@ -135,3 +151,123 @@ def test_home_endpoint_reports_running_api():
     assert set(body.keys()) == {"message"}
     assert isinstance(body["message"], str)
     assert "DealCompare API running" in body["message"]
+
+
+# --- Task 4: typed response contract --------------------------------------
+
+
+def test_search_response_schema_is_exact(monkeypatch):
+    """
+    The full /search response must match the published schema exactly:
+    top-level {message, category, results}; every card has
+    {title, best_price, best_platform, best_url, image, offers}; every offer
+    has {title, product_key, platform, price_value, price_display, url,
+    image} with the documented types.  This pins the contract so the
+    frontend can rely on it without guessing.
+    """
+    _mock_scrapers(monkeypatch, [
+        _offer("Amazon", "Apple iPhone 15 (128 GB) - Black", 79999.0, "https://example.com/a.jpg"),
+        _offer("Myntra", "Apple iPhone 15 (128 GB) - Blue", 78999.0, "https://example.com/b.jpg"),
+    ])
+
+    res = client.get("/search", params={"query": "iphone 15"})
+
+    assert res.status_code == 200
+    data = res.json()
+
+    assert set(data.keys()) == {"message", "category", "results"}
+    assert data["message"] == "Products compared successfully"
+    assert data["category"] == "Electronics"
+    assert isinstance(data["results"], list) and data["results"]
+
+    for card in data["results"]:
+        assert set(card.keys()) == {
+            "title", "best_price", "best_platform", "best_url", "image", "offers",
+        }
+        assert isinstance(card["title"], str) and card["title"]
+        assert isinstance(card["best_price"], str) and card["best_price"]
+        assert isinstance(card["best_platform"], str) and card["best_platform"]
+        assert isinstance(card["best_url"], str) and card["best_url"]
+        assert isinstance(card["image"], str)
+        assert isinstance(card["offers"], list)
+
+        for offer in card["offers"]:
+            assert set(offer.keys()) == {
+                "title", "product_key", "platform",
+                "price_value", "price_display", "url", "image",
+            }
+            assert isinstance(offer["title"], str) and offer["title"]
+            assert isinstance(offer["product_key"], str) and offer["product_key"]
+            assert isinstance(offer["platform"], str) and offer["platform"]
+            assert isinstance(offer["price_value"], (int, float)) and offer["price_value"] > 0
+            assert isinstance(offer["price_display"], str) and offer["price_display"]
+            assert isinstance(offer["url"], str) and offer["url"]
+            assert isinstance(offer["image"], str)
+
+
+def test_category_is_detected_and_echoed(monkeypatch):
+    """
+    The response 'category' field is driven by detect_category and is present
+    even for an honest-empty result, matching what the UI expects.
+    """
+    cases = [
+        ("tshirt men", "Fashion"),
+        ("iphone 15", "Electronics"),
+        ("serum for face", "Beauty"),
+        ("samsung galaxy s24", "General"),
+        ("random generic thing", "General"),
+    ]
+    for query, expected in cases:
+        _mock_scrapers(monkeypatch, [])
+        res = client.get("/search", params={"query": query})
+
+        assert res.status_code == 200
+        assert res.json()["category"] == expected
+
+
+def test_card_image_uses_first_nonempty_offer_image(monkeypatch):
+    """
+    The card-level 'image' is the first non-empty offer image, so cards render
+    an image without any client-side derivation.
+    """
+    _mock_scrapers(monkeypatch, [
+        _offer("Amazon", "Apple iPhone 15 (128 GB) - Black", 79999.0, "https://example.com/first.jpg"),
+        _offer("Myntra", "Apple iPhone 15 (128 GB) - Black", 78999.0, ""),
+    ])
+
+    res = client.get("/search", params={"query": "iphone 15"})
+
+    assert res.status_code == 200
+    card = res.json()["results"][0]
+    assert card["image"] == "https://example.com/first.jpg"
+
+
+def test_card_image_falls_through_to_later_offer(monkeypatch):
+    """
+    When the first offer carries no image, the card image comes from the next
+    non-empty offer image instead.
+    """
+    _mock_scrapers(monkeypatch, [
+        _offer("Amazon", "Apple iPhone 15 (128 GB) - Black", 79999.0, ""),
+        _offer("Myntra", "Apple iPhone 15 (128 GB) - Black", 78999.0, "https://example.com/later.jpg"),
+    ])
+
+    res = client.get("/search", params={"query": "iphone 15"})
+
+    assert res.status_code == 200
+    card = res.json()["results"][0]
+    assert card["image"] == "https://example.com/later.jpg"
+
+
+def test_card_image_is_empty_when_no_offer_has_image(monkeypatch):
+    """No offer image anywhere -> the card image is an empty string."""
+    _mock_scrapers(monkeypatch, [
+        _offer("Amazon", "Apple iPhone 15 (128 GB) - Black", 79999.0, ""),
+        _offer("Myntra", "Apple iPhone 15 (128 GB) - Black", 78999.0, ""),
+    ])
+
+    res = client.get("/search", params={"query": "iphone 15"})
+
+    assert res.status_code == 200
+    card = res.json()["results"][0]
+    assert card["image"] == ""
