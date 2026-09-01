@@ -566,3 +566,89 @@ def test_similar_names_but_different_types_across_stores_stay_separate(make_prod
     titles = {g["title"] for g in results}
     assert any("Shoes" in t for t in titles)
     assert any("Sandals" in t for t in titles)
+
+
+# --- 4. Pack count / physical size / marketplace-prefix regression --------
+
+def test_pack_of_6_and_pack_of_8_same_product_stay_separate(make_product):
+    """'Pack of 6' and 'Pack of 8' of the same socks are different SKUs."""
+    pack6 = make_product(
+        platform="Amazon",
+        product_key="men-casual-cotton-socks-6",
+        title="Men Casual Cotton Socks (Pack of 6)",
+        price_value=299.0,
+        price_display="\u20b9299",
+        url="https://www.amazon.in/dp/B0SOCKS6",
+    )
+    pack8 = make_product(
+        platform="Amazon",
+        product_key="men-casual-cotton-socks-8",
+        title="Men Casual Cotton Socks (Pack of 8)",
+        price_value=349.0,
+        price_display="\u20b9349",
+        url="https://www.amazon.in/dp/B0SOCKS8",
+    )
+
+    results = aggregate_products([pack6, pack8])
+
+    assert len(results) == 2, "Pack of 6 and Pack of 8 must be separate cards"
+    titles = [g["title"] for g in results]
+    assert any("Pack of 6" in t for t in titles)
+    assert any("Pack of 8" in t for t in titles)
+
+
+def test_trolley_55cm_and_65cm_stay_separate(make_product):
+    """Physical size distinguishes the same trolley bag."""
+    t55 = make_product(
+        platform="Amazon",
+        product_key="women-cabin-trolley-55cm",
+        title="Women Cabin Size Trolley Bag 55 cm",
+        price_value=2999.0,
+        price_display="\u20b92,999",
+        url="https://www.amazon.in/dp/B0TROL55",
+    )
+    t65 = make_product(
+        platform="Amazon",
+        product_key="women-cabin-trolley-65cm",
+        title="Women Cabin Size Trolley Bag 65 cm",
+        price_value=3499.0,
+        price_display="\u20b93,499",
+        url="https://www.amazon.in/dp/B0TROL65",
+    )
+
+    results = aggregate_products([t55, t65])
+
+    assert len(results) == 2, "55 cm and 65 cm trolleys must be separate cards"
+    titles = [g["title"] for g in results]
+    assert any("55 cm" in t for t in titles)
+    assert any("65 cm" in t for t in titles)
+
+
+def test_marketplace_mc_prefix_cross_store_merges(make_product):
+    """
+    Amazon's 'MC' retailer designation between brand and model must not block
+    the identical product from merging with the same model sold on Flipkart.
+    """
+    flipkart = make_product(
+        platform="Flipkart",
+        product_key="samsung-galaxy-s24-5g-128gb",
+        title="Samsung Galaxy S24 5G (Marble Gray, 128 GB)",
+        price_value=49999.0,
+        price_display="\u20b949,999",
+        url="/samsung-galaxy-s24/p/ita?pid=FK_S24",
+    )
+    amazon = make_product(
+        platform="Amazon",
+        product_key="samsung-galaxy-s24-mc-5g-128gb",
+        title="Samsung Galaxy S24 MC 5G (Marble Gray, 128 GB)",
+        price_value=50599.0,
+        price_display="\u20b950,599",
+        url="https://www.amazon.in/dp/B0S24AM",
+    )
+
+    results = aggregate_products([flipkart, amazon])
+
+    assert len(results) == 1, "MC dealer prefix must not split two identical S24 cards"
+    (group,) = results
+    assert {o["platform"] for o in group["offers"]} == {"Flipkart", "Amazon"}
+    assert len(group["offers"]) == 2

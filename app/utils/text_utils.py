@@ -154,6 +154,11 @@ _MODEL_SKIP_WORDS = {
     "4g", "5g", "dual", "sim", "with", "and", "or", "for", "in", "of", "the",
     "a", "an", "to", "smart", "new", "latest", "ai", "wifi", "bluetooth",
     "nfc",
+    # Retailer / marketplace designations that look like model tokens but are
+    # not part of the product identity (e.g. Amazon "Samsung Galaxy S24 MC 5G").
+    # Skipping them lets the identical product merge with the same model sold
+    # on another store without "MC" in its title.
+    "mc",
 }
 
 
@@ -266,6 +271,44 @@ def _resolve_memory(joined):
 _SIZE_TOKEN = re.compile(r"\d+(?:\.\d+)?(?:gb|tb)$")
 
 
+def _extract_pack_count(joined):
+    """
+    The number of units bundled in a multi-pack offer.
+
+    Recognises the common phrasing "Pack/Set/Combo of N" (e.g. "Pack of 6",
+    "Set of 12", "Combo of 2").  A single-unit offer carries no pack count
+    (None = unknown), so it never forces a split against an offer that also
+    omits one; but "Pack of 6" and "Pack of 8" of the same product are
+    materially different SKUs and must not share a card.
+    """
+    m = re.search(r"\b(?:pack|set|combo|pair|pr|multipack|multi[- ]?pack)\s+of\s+(\d+)\b", joined)
+    return int(m.group(1)) if m else None
+
+
+def _extract_physical_size(joined):
+    """
+    The product's physical dimension where a unit (cm/inch) is stated.
+
+    "Women Cabin Size Trolley Bag 55 cm" versus "65 cm" are the same bag in a
+    different size and must not share a card.  Capturing the numeric value
+    together with its unit (e.g. "55cm") makes size a first-class identity
+    attribute.  A title with no size keeps None (unknown), which never forces
+    a split, so size-less and size-stated listings of the *same* size-bearing
+    product still group.
+    """
+    m = re.search(r"(\d+(?:\.\d+)?)\s*(cm|inches?|inch|mm|ft|feet)\b", joined)
+    if not m:
+        return None
+    value = m.group(1)
+    unit = m.group(2)
+    # Normalise singular/plural and abbreviations to a compact stable key.
+    if unit in ("inches", "inch"):
+        unit = "in"
+    elif unit in ("feet", "ft"):
+        unit = "ft"
+    return f"{value}{unit}"
+
+
 def _extract_model_tokens(tokens):
     """Model fingerprint: brand-aware run of identity words vs attributes."""
     brand_idx = None
@@ -311,8 +354,9 @@ def extract_variant_attributes(text):
     Parse a product title into its variant-defining attributes.
 
     Returns a dict with keys: brand, model, ram, storage, processor,
-    color, edition, model_no, product_type.  `None` means the attribute
-    was not mentioned in the title (and therefore must not force a split).
+    color, edition, model_no, product_type, pack_count, size_cm.  `None`
+    means the attribute was not mentioned in the title (and therefore must
+    not force a split).
     """
     empty = {
         "brand": None,
@@ -324,6 +368,8 @@ def extract_variant_attributes(text):
         "edition": None,
         "model_no": None,
         "product_type": None,
+        "pack_count": None,
+        "size_cm": None,
     }
     if not text:
         return empty
@@ -344,6 +390,13 @@ def extract_variant_attributes(text):
     attrs["color"] = _extract_color(tokens, joined)
     attrs["edition"] = _extract_edition(joined)
     attrs["model_no"] = _extract_model_no(joined)
+    # Quantity and physical size are first-class identity attributes: two
+    # offers that differ only in pack count or physical size (e.g. "55cm" vs
+    # "65cm") are materially different SKUs.  They are None when the title
+    # omits them, so a title that does not state a count/size still merges
+    # with one that shares all other attributes.
+    attrs["pack_count"] = _extract_pack_count(joined)
+    attrs["size_cm"] = _extract_physical_size(joined)
     # Product type is only meaningful for unbranded items; branded electronics
     # (brand is set) must not gain a type so their grouping is unchanged.
     if not brand:

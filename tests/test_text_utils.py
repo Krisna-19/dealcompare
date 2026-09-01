@@ -163,3 +163,69 @@ def test_extract_storage_returns_none_when_absent():
 
 def test_extract_storage_case_insensitive():
     assert extract_storage("512GB") == "512gb"
+
+
+# --- pack_count / size_cm / marketplace-prefix attributes ------------------
+
+def test_pack_count_extracts_quantity():
+    attrs = extract_variant_attributes("Men Casual Cotton Socks (Pack of 6)")
+    assert attrs["pack_count"] == 6
+
+
+def test_pack_count_distinguishes_6_from_8():
+    assert extract_variant_attributes("Men Casual Cotton Socks (Pack of 6)")[
+        "pack_count"
+    ] == 6
+    assert extract_variant_attributes("Men Casual Cotton Socks (Pack of 8)")[
+        "pack_count"
+    ] == 8
+
+
+def test_pack_count_accepts_set_and_combo_phrasing():
+    assert extract_variant_attributes("Set of 3 Stainless Steel Spoons")["pack_count"] == 3
+    assert extract_variant_attributes("Combo of 2 Mugs")["pack_count"] == 2
+
+
+def test_pack_count_is_none_when_single_unit():
+    attrs = extract_variant_attributes("Men Casual Cotton Socks")
+    assert attrs["pack_count"] is None
+
+
+def test_physical_size_extracts_cm():
+    attrs = extract_variant_attributes("Women Cabin Size Trolley Bag 55 cm")
+    assert attrs["size_cm"] == "55cm"
+
+
+def test_physical_size_distinguishes_55_from_65():
+    assert extract_variant_attributes("Women Cabin Size Trolley Bag 55 cm")[
+        "size_cm"
+    ] == "55cm"
+    assert extract_variant_attributes("Women Cabin Size Trolley Bag 65 cm")[
+        "size_cm"
+    ] == "65cm"
+
+
+def test_physical_size_tracks_inch_unit():
+    assert extract_variant_attributes("Monitor 24 inches")["size_cm"] == "24in"
+    # Android 'inch' is in the electronics stop-words, but a display-size-less
+    # product still reports its physical unit when present.
+    assert extract_variant_attributes("27 inch Display")["size_cm"] == "27in"
+
+
+def test_physical_size_is_none_without_a_unit():
+    # A shoe "Size 8" carries no physical unit, so it must NOT be mistaken for
+    # an explicit cm/inch size (which would wrongly split shoe sizes).
+    assert extract_variant_attributes("Nike Men Air Max 270 Running Shoes Size 8")[
+        "size_cm"
+    ] is None
+
+
+def test_marketplace_prefix_does_not_pollute_model():
+    # Amazon-style "MC" retailer designation must not change the model key.
+    assert (
+        extract_variant_attributes("Samsung Galaxy S24 5G (Marble Gray, 128 GB)")["model"]
+        == extract_variant_attributes(
+            "Samsung Galaxy S24 MC 5G (Marble Gray, 128 GB)"
+        )["model"]
+        == "s24"
+    )
