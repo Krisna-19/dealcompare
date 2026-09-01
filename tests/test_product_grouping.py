@@ -29,6 +29,7 @@ def _sku_of(offer):
             ("color", attrs["color"]),
             ("edition", attrs["edition"]),
             ("model_no", attrs["model_no"]),
+            ("product_type", attrs["product_type"]),
         )
         if value
     )
@@ -420,3 +421,148 @@ def test_every_offer_in_a_card_resolves_to_one_sku(make_product):
     for group in results:
         skus = {_sku_of(o) for o in group["offers"]}
         assert len(skus) == 1, f"card {group['title']!r} mixes multiple SKUs: {skus}"
+
+
+# --- 13. Non-electronics over-merge prevention ----------------------------
+# Task 7: a wallet and a card holder ("Men Casual Black Genuine Leather ...")
+# shared the same brand-less, model-less fingerprint and wrongly merged. They
+# are materially different product types and must stay on separate cards.
+
+def test_wallet_and_card_holder_never_merge(make_product):
+    card_holder = make_product(
+        platform="Flipkart",
+        product_key="men-casual-black-genuine-leather-card-holder",
+        title="Men Casual Black Genuine Leather Card Holder",
+        price_value=269.0,
+        price_display="\u20b9269",
+        url="/men-casual-black-genuine-leather-card-holder/p/itc?pid=CARDHOLD1",
+    )
+    wallet = make_product(
+        platform="Flipkart",
+        product_key="men-casual-black-genuine-leather-wallet",
+        title="Men Casual Black Genuine Leather Wallet",
+        price_value=278.0,
+        price_display="\u20b9278",
+        url="/men-casual-black-genuine-leather-wallet/p/itw?pid=WALLET1",
+    )
+
+    results = aggregate_products([card_holder, wallet])
+
+    assert len(results) == 2, "wallet and card holder must be separate cards"
+    titles = {g["title"] for g in results}
+    assert any("Card Holder" in t for t in titles)
+    assert any("Wallet" in t for t in titles)
+    # each card holds exactly one offer; nothing cross-contaminated
+    assert {len(g["offers"]) for g in results} == {1}
+
+
+def test_handbag_and_trolley_never_merge(make_product):
+    handbag = make_product(
+        platform="Amazon",
+        product_key="women-black-genuine-leather-handbag",
+        title="Women Black Genuine Leather Handbag",
+        price_value=1299.0,
+        price_display="\u20b91,299",
+        url="https://www.amazon.in/dp/B0HANDBAG1",
+    )
+    trolley = make_product(
+        platform="Amazon",
+        product_key="women-black-genuine-leather-trolley",
+        title="Women Black Genuine Leather Trolley Bag",
+        price_value=2999.0,
+        price_display="\u20b92,999",
+        url="https://www.amazon.in/dp/B0TROLLEY1",
+    )
+
+    results = aggregate_products([handbag, trolley])
+
+    assert len(results) == 2
+    titles = {g["title"] for g in results}
+    assert any("Handbag" in t for t in titles)
+    assert any("Trolley" in t for t in titles)
+
+
+# --- 14. Positive: genuinely identical non-electronics still merge ---------
+
+def test_two_identical_wallets_across_listings_merge(make_product):
+    wallet_a = make_product(
+        platform="Flipkart",
+        product_key="men-casual-black-genuine-leather-wallet",
+        title="Men Casual Black Genuine Leather Wallet",
+        price_value=278.0,
+        price_display="\u20b9278",
+        url="/men-casual-black-genuine-leather-wallet/p/ita?pid=WALLET_A",
+    )
+    wallet_b = make_product(
+        platform="Flipkart",
+        product_key="men-casual-black-genuine-leather-wallet",
+        title="Men Casual Black Genuine Leather Wallet (Bifa Card Slot)",
+        price_value=279.0,
+        price_display="\u20b9279",
+        url="/men-casual-black-genuine-leather-wallet/p/itb?pid=WALLET_B",
+    )
+
+    (group,) = aggregate_products([wallet_a, wallet_b])
+
+    assert len(group["offers"]) == 2
+    assert group["best_platform"] == "Flipkart"
+    assert group["best_price"] == "\u20b9278"
+    assert len({_sku_of(o) for o in group["offers"]}) == 1
+
+
+# --- 15. Cross-store synthetic control: same product merges into one card --
+# Deterministic and offline; never depends on live Amazon/Flipkart scraping.
+
+def test_same_product_across_two_stores_becomes_one_card(make_product):
+    flipkart = make_product(
+        platform="Flipkart",
+        product_key="men-brown-genuine-leather-wallet",
+        title="Men Brown Genuine Leather Wallet",
+        price_value=279.0,
+        price_display="\u20b9279",
+        url="/men-brown-genuine-leather-wallet/p/itw?pid=FK_BRN_WL",
+    )
+    amazon = make_product(
+        platform="Amazon",
+        product_key="men-brown-genuine-leather-wallet",
+        title="Men Brown Genuine Leather Wallet",
+        price_value=289.0,
+        price_display="\u20b9289",
+        url="https://www.amazon.in/dp/B0BRNWALLET",
+    )
+
+    results = aggregate_products([flipkart, amazon])
+
+    # One canonical card with a Flipkart offer AND an Amazon offer.
+    assert len(results) == 1
+    (group,) = results
+    assert {o["platform"] for o in group["offers"]} == {"Flipkart", "Amazon"}
+    assert len(group["offers"]) == 2
+    assert group["best_platform"] == "Flipkart"
+    assert group["best_price"] == "\u20b9279"
+
+
+def test_similar_names_but_different_types_across_stores_stay_separate(make_product):
+    flipkart_shoe = make_product(
+        platform="Flipkart",
+        product_key="men-black-sports-shoes",
+        title="Men Black Sports Shoes",
+        price_value=1499.0,
+        price_display="\u20b91,499",
+        url="/men-black-sports-shoes/p/itsh?pid=FK_SHOE",
+    )
+    amazon_sandal = make_product(
+        platform="Amazon",
+        product_key="men-black-sports-sandal",
+        title="Men Black Sports Sandals",
+        price_value=999.0,
+        price_display="\u20b9999",
+        url="https://www.amazon.in/dp/B0SPORTSAN",
+    )
+
+    results = aggregate_products([flipkart_shoe, amazon_sandal])
+
+    assert len(results) == 2, "similar names with different types must stay separate"
+    titles = {g["title"] for g in results}
+    assert any("Shoes" in t for t in titles)
+    assert any("Sandals" in t for t in titles)

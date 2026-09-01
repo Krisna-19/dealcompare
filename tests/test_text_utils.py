@@ -2,6 +2,7 @@ from app.utils.text_utils import (
     extract_model_number,
     extract_product_info,
     extract_storage,
+    extract_variant_attributes,
     generate_product_key,
     normalize_text,
 )
@@ -103,6 +104,21 @@ def test_normalize_text_collapses_whitespace():
 
 def test_normalize_text_empty_string():
     assert normalize_text("") == ""
+
+
+def test_product_type_isolates_material_noun():
+    # unbranded titles: product type differentiates materially different items
+    assert extract_product_info("Men Casual Black Genuine Leather Wallet")[0] is None
+    assert extract_variant_attributes("Men Casual Black Genuine Leather Wallet")["product_type"] == "wallet"
+    assert extract_variant_attributes("Men Casual Black Genuine Leather Card Holder")["product_type"] == "card holder"
+    assert extract_variant_attributes("Women Black Genuine Leather Handbag")["product_type"] == "handbag"
+    assert extract_variant_attributes("Women Black Genuine Leather Trolley Bag")["product_type"] == "trolley"
+    assert extract_variant_attributes("Teakwood Genuine Leather Biker Jacket")["product_type"] == "jacket"
+
+
+def test_product_type_not_set_for_branded_electronics():
+    # branded electronics must not gain a product type (keeps S24 grouping stable)
+    assert extract_variant_attributes("Samsung Galaxy S24 5G Smartphone")["product_type"] is None
 
 
 # --- extract_model_number --------------------------------------------------

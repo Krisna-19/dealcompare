@@ -11,6 +11,7 @@ _AMAZON_ASIN_RE = re.compile(r"/dp/([A-Z0-9]{10})", re.IGNORECASE)
 # Order is significant: canonical SKU attributes used for grouping.
 _KEY_LABELS = (
     "brand", "model", "ram", "storage", "processor", "color", "edition", "model_no",
+    "product_type",
 )
 
 

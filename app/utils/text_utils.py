@@ -158,6 +158,47 @@ _MODEL_SKIP_WORDS = {
 
 
 # ---------------------------------------------------------------------------
+# Product-type detection (non-electronics identity).
+# ---------------------------------------------------------------------------
+# Many unbranded offers carry no brand and no numeric model, so the SKU
+# fingerprint degrades to "<colour> + leading words" (e.g. "Men Casual Black").
+# Without a product-type term a wallet and a card holder sharing that
+# fingerprint would wrongly merge.  Retrieving the material noun lets the
+# aggregator keep materially different products on separate cards while still
+# merging a genuinely identical wallet listed twice.
+#
+# Ordered longest-phrase-first so "card holder" wins over "card" and
+# "t-shirt" over "shirt".  Electronics models that happen to mention a noun
+# (e.g. "Smartphone") should NOT gain a product type here: it is missing
+# (None = unknown) for electronics, which never forces a split.
+_PRODUCT_TYPE_TERMS = sorted(
+    [
+        "card holder", "card-holder", "credit card holder", "visiting card holder",
+        "wallet", "bifold wallet", "bi-fold wallet", "trifold wallet", "card wallet",
+        "purse", "handbag", "shoulder bag", "tote bag", "sling bag", "backpack",
+        "laptop bag", "briefcase", "trolley", "suitcase", "luggage", "duffel",
+        "jacket", "winter jacket", "bomber jacket", "leather jacket", "blazer",
+        "hoodie", "sweatshirt", "sweater", "pullover", "cardigan", "coat",
+        "t-shirt", "tshirt", "tee", "shirt", "kurta", "kurti", "dress", "gown",
+        "jeans", "trouser", "trousers", "pants", "shorts", "track pants", "joggers",
+        "saree", "salwar", "leggings", "tights", "skirt", "shoes", "shoe", "sneaker",
+        "sneakers", "sandal", "sandals", "slippers", "boots", "boot", "loafers",
+        "socks", "gloves", "scarf", "muffler", "cap", "hat", "beanie", "belt",
+        "sunglasses", "eyeglasses", "spectacles", "umbrella", "bag", "clutch",
+        "duffle", "tote", "satchel", "crossbody",
+    ],
+    key=lambda p: -len(p.split()),
+)
+
+
+def _extract_product_type(joined):
+    for term in _PRODUCT_TYPE_TERMS:
+        if re.search(rf"\b{re.escape(term)}\b", joined):
+            return term.replace("-", " ").lower()
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Structured variant-attribute extraction.
 # ---------------------------------------------------------------------------
 
@@ -270,8 +311,8 @@ def extract_variant_attributes(text):
     Parse a product title into its variant-defining attributes.
 
     Returns a dict with keys: brand, model, ram, storage, processor,
-    color, edition, model_no.  `None` means the attribute was not
-    mentioned in the title (and therefore must not force a split).
+    color, edition, model_no, product_type.  `None` means the attribute
+    was not mentioned in the title (and therefore must not force a split).
     """
     empty = {
         "brand": None,
@@ -282,6 +323,7 @@ def extract_variant_attributes(text):
         "color": None,
         "edition": None,
         "model_no": None,
+        "product_type": None,
     }
     if not text:
         return empty
@@ -302,6 +344,10 @@ def extract_variant_attributes(text):
     attrs["color"] = _extract_color(tokens, joined)
     attrs["edition"] = _extract_edition(joined)
     attrs["model_no"] = _extract_model_no(joined)
+    # Product type is only meaningful for unbranded items; branded electronics
+    # (brand is set) must not gain a type so their grouping is unchanged.
+    if not brand:
+        attrs["product_type"] = _extract_product_type(joined)
     return attrs
 
 

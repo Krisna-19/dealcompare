@@ -1,4 +1,12 @@
 import { useState } from "react";
+import {
+  STORES,
+  SORT_MODES,
+  filterByStore,
+  sortProducts,
+  cardOffers,
+  bestVisibleOffer,
+} from "../lib/filterSort";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -34,6 +42,8 @@ export default function Home() {
   const [error, setError] = useState("");
   const [results, setResults] = useState([]);
   const [category, setCategory] = useState("General");
+  const [activeStore, setActiveStore] = useState("All Stores");
+  const [sortMode, setSortMode] = useState("best-deal");
 
   const searchDeals = async (event) => {
     event.preventDefault();
@@ -44,6 +54,8 @@ export default function Home() {
     setLoading(true);
     setError("");
     setResults([]);
+    setActiveStore("All Stores");
+    setSortMode("best-deal");
 
     try {
       const res = await fetch(
@@ -66,6 +78,9 @@ export default function Home() {
       setLoading(false);
     }
   };
+
+  const filtered = filterByStore(results, activeStore);
+  const visible = sortProducts(filtered, sortMode, activeStore);
 
   return (
     <div className="container">
@@ -94,11 +109,64 @@ export default function Home() {
       {/* ERROR */}
       {error && <div className="error-box">⚠️ {error}</div>}
 
-      {/* RESULTS */}
+      {/* FILTERS + SORT — only shown once results exist */}
       {results.length > 0 && (
+        <div className="filter-bar">
+          <div className="store-filters" role="group" aria-label="Filter by store">
+            {STORES.map((store) => (
+              <button
+                key={store}
+                type="button"
+                className={`store-btn${activeStore === store ? " active" : ""}`}
+                aria-pressed={activeStore === store}
+                onClick={() => setActiveStore(store)}
+              >
+                {store}
+              </button>
+            ))}
+          </div>
+
+          <label className="sort-control">
+            <span>Sort by</span>
+            <select
+              value={sortMode}
+              onChange={(e) => setSortMode(e.target.value)}
+              aria-label="Sort products"
+            >
+              {SORT_MODES.map((mode) => (
+                <option key={mode.value} value={mode.value}>
+                  {mode.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
+
+      {/* NO MATCHES FOR FILTER */}
+      {results.length > 0 && visible.length === 0 && (
+        <div className="error-box">No products match this store filter</div>
+      )}
+
+      {/* RESULTS */}
+      {visible.length > 0 && (
         <div className="results">
-          {results.map((item, index) => {
-            const lowest = cheapestIndexes(item.offers);
+          {visible.map((item, index) => {
+            const offers = cardOffers(item, activeStore).map((offer, i) => ({
+              ...offer,
+              _index: i,
+            }));
+            const bestOffer = bestVisibleOffer(item, activeStore);
+            const lowest = cheapestIndexes(offers);
+
+            const headlinePrice =
+              bestOffer?.price_display || item.best_price || "";
+            const headlinePlatform =
+              activeStore === "All Stores"
+                ? item.best_platform || bestOffer?.platform || ""
+                : bestOffer?.platform || item.best_platform || "";
+            const headlineUrl =
+              bestOffer?.url || item.best_url || "";
 
             return (
               <div className="card" key={index}>
@@ -124,26 +192,25 @@ export default function Home() {
                 <h3>{item.title}</h3>
 
                 {/* BEST DEAL */}
-                {item.best_price && item.best_platform && (
+                {headlinePrice && headlinePlatform && (
                   <div className="best-deal">
                     <p>
-                      <b>Best price:</b> {item.best_price} on{" "}
-                      {item.best_platform}
+                      <b>Best price:</b> {headlinePrice} on {headlinePlatform}
                     </p>
                     <a
-                      href={item.best_url}
+                      href={headlineUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      Visit {item.best_platform}
+                      Visit {headlinePlatform}
                     </a>
                   </div>
                 )}
 
-                {/* ALL OFFERS */}
+                {/* ALL OFFERS (filtered to the selected store) */}
                 <div className="offers">
-                  {item.offers.map((offer, i) => (
-                    <div className="offer-row" key={i}>
+                  {offers.map((offer, i) => (
+                    <div className="offer-row" key={offer._index}>
                       <span className="platform">{offer.platform}</span>
 
                       <span className="price">
