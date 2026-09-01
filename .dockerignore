@@ -1,0 +1,13 @@
+# Keep the image lean: never ship VCS metadata, virtualenvs, caches, tests,
+# editor noise, or the stale duplicated app tree.
+.git
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+tests
+node_modules
+dist
+dealcompare-api
+.env

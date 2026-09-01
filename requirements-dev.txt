@@ -1,0 +1,11 @@
+# DealCompare API - test/demo-only dependencies.
+#
+# These are needed to RUN the test suite and code-quality gates, not to serve
+# the API. Install alongside runtime deps:
+#
+#     pip install -r requirements.txt -r requirements-dev.txt
+#
+# python -m playwright install chromium   # also needed for the test suite
+
+pytest==9.1.1
+httpx==0.28.1

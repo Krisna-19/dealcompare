@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  api:
+    name: Backend (pytest + frontend JS tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt -r requirements-dev.txt
+          python -m playwright install chromium
+          sudo "$(command -v python)" -m playwright install-deps chromium || true
+
+      - name: Backend test suite (deterministic)
+        run: python -m pytest -q
+
+      - name: Vanilla frontend tests
+        run: node frontend/tests/app.test.js
+
+  ui:
+    name: React UI (lint + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dealcompare-ui
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: dealcompare-ui/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+  docker:
+    name: Docker image build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t dealcompare-api .

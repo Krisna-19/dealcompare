@@ -34,6 +34,8 @@ def test_defaults_preserve_previous_hardcoded_values():
     assert s.rate_limit_max_requests == 60
     assert s.rate_limit_window_seconds == 60.0
     assert s.amazon_affiliate_tag == "dealcompare19-21"
+    assert s.log_level == "INFO"
+    assert s.metrics_enabled is True
     assert s.allowed_origins_list == [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
@@ -74,6 +76,15 @@ def test_hardening_settings_env_overrides(monkeypatch):
     assert s.rate_limit_enabled is True
     assert s.rate_limit_max_requests == 10
     assert s.rate_limit_window_seconds == 30.0
+
+
+def test_observability_settings_env_overrides(monkeypatch):
+    monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+    monkeypatch.setenv("METRICS_ENABLED", "false")
+
+    s = Settings(_env_file=None)
+    assert s.log_level == "DEBUG"
+    assert s.metrics_enabled is False
 
 
 def test_csv_style_settings_parse_into_lists(monkeypatch):

@@ -92,6 +92,14 @@ class Settings(BaseSettings):
         "https://dealcompare.in"
     )
 
+    # --- Observability ---------------------------------------------------------
+    # Root logger level. Startup applies this to the root logger after the
+    # default INFO basicConfig (see app/main.py).
+    log_level: str = "INFO"
+    # Expose /metrics (Prometheus text format). Disabling it also skips the
+    # per-request instrumentation work in the metrics middleware.
+    metrics_enabled: bool = True
+
     @property
     def allowed_origins_list(self) -> list[str]:
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]

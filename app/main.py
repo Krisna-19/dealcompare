@@ -4,9 +4,10 @@ from collections import defaultdict, deque
 
 from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from app.core.config import get_settings
+from app.core.metrics import metrics
 from app.core.errors import (
     ERROR_INVALID_QUERY,
     ERROR_UPSTREAM_SCRAPE_FAILED,
@@ -30,6 +31,10 @@ logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
+# Root logger level from configuration (defaults to INFO, matching the
+# basicConfig above). Validated/overridable via the LOG_LEVEL environment var.
+logging.getLogger().setLevel(settings.log_level)
+
 # A query longer than this is never meaningful for a product search and only
 # wastes scrape + match time; it is rejected with a client error.
 MAX_QUERY_LENGTH = 200
@@ -38,6 +43,14 @@ app = FastAPI(
     title="DealCompare API",
     description="Product price comparison engine",
     version="1.0"
+)
+
+# Static build/serve information sample for scrapers and dashboards.
+metrics.gauge(
+    "dc_build_info",
+    "DealCompare API build information",
+    1.0,
+    {"version": app.version},
 )
 
 # CORS: explicit origin allow-list from settings (ALLOWED_ORIGINS).
@@ -53,6 +66,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def observe_request_metrics(request: Request, call_next):
+    """Record request count + latency for every response that is served.
+
+    Outermost application middleware (registered before the rate limiter) so
+    counters reflect ALL outcomes, including 429 rate-limit rejects. It is a
+    no-op when metrics are disabled.
+    """
+    if not get_settings().metrics_enabled:
+        return await call_next(request)
+
+    start = time.monotonic()
+    response = await call_next(request)
+    duration = time.monotonic() - start
+
+    labels = {"path": request.url.path, "status": str(response.status_code)}
+    metrics.inc("dc_http_requests_total", "HTTP requests served", labels)
+    metrics.observe(
+        "dc_request_duration_seconds",
+        duration,
+        "HTTP request duration in seconds",
+        labels,
+    )
+    return response
+
 @app.get("/")
 def home():
     return {"message": "DealCompare API running 🚀"}
@@ -67,6 +106,20 @@ def health():
     traffic never trips protection meant for real clients.
     """
     return {"status": "ok"}
+
+
+@app.get("/metrics")
+def metrics_endpoint():
+    """Prometheus text-format metrics for scraper/dashboard consumption.
+
+    Dependency-free (see app/core/metrics.py). Also exempt from the optional
+    per-IP rate limiter for the same reason as /health: monitoring traffic
+    must never trip client protection.
+    """
+    return Response(
+        content=metrics.render(),
+        media_type="text/plain; version=0.0.4",
+    )
 
 
 # -----------------------------------------------------------------------------
@@ -88,7 +141,7 @@ async def per_ip_rate_limit(request: Request, call_next):
     settings = get_settings()
 
     if settings.rate_limit_enabled:
-        if request.url.path == "/health":
+        if request.url.path in ("/health", "/metrics"):
             # Monitoring/liveness traffic bypasses the quota (still served).
             return await call_next(request)
 
@@ -124,6 +177,11 @@ async def search(query: str = Query(...)):
     q = query.strip()
     if not q:
         # Client error: nothing meaningful to search for.
+        metrics.inc(
+            "dc_search_requests_total",
+            "Search requests by outcome",
+            {"outcome": "invalid_query"},
+        )
         raise http_error(
             422,
             ERROR_INVALID_QUERY,
@@ -133,6 +191,11 @@ async def search(query: str = Query(...)):
     if len(q) > MAX_QUERY_LENGTH:
         # Client error: a product query this long is not a real search; reject
         # it before any expensive scraping starts.
+        metrics.inc(
+            "dc_search_requests_total",
+            "Search requests by outcome",
+            {"outcome": "invalid_query"},
+        )
         raise http_error(
             422,
             ERROR_INVALID_QUERY,
@@ -147,6 +210,11 @@ async def search(query: str = Query(...)):
         # Upstream/pipeline failure: report honestly as a server-side
         # upstream problem, never as fabricated or empty "success" data.
         logger.error("Upstream scrape failure for query '%s': %r", q, e)
+        metrics.inc(
+            "dc_search_requests_total",
+            "Search requests by outcome",
+            {"outcome": "error"},
+        )
         raise http_error(
             502,
             ERROR_UPSTREAM_SCRAPE_FAILED,
@@ -155,6 +223,11 @@ async def search(query: str = Query(...)):
 
     if not products:
         # Honest empty result: genuinely no products found.
+        metrics.inc(
+            "dc_search_requests_total",
+            "Search requests by outcome",
+            {"outcome": "empty"},
+        )
         return {
             "message": "No products found",
             "category": category,
@@ -164,6 +237,11 @@ async def search(query: str = Query(...)):
     products = filter_irrelevant_products(products, q)
 
     if not products:
+        metrics.inc(
+            "dc_search_requests_total",
+            "Search requests by outcome",
+            {"outcome": "empty"},
+        )
         return {
             "message": "No products found",
             "category": category,
@@ -195,6 +273,11 @@ async def search(query: str = Query(...)):
         )
         cards.append({**card, "image": image})
 
+    metrics.inc(
+        "dc_search_requests_total",
+        "Search requests by outcome",
+        {"outcome": "success"},
+    )
     return {
         "message": "Products compared successfully",
         "category": category,

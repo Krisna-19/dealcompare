@@ -1,0 +1,27 @@
+# Render blueprint for the DealCompare API.
+#
+# Declarative replacement for the dashboard-configured Python buildpack: the
+# service runs the Docker image so Playwright + Chromium are provisioned
+# deterministically alongside the app.
+#
+# Secrets (e.g. AMAZON_AFFILIATE_TAG overrides) should be set in the Render
+# dashboard per service; this file only wires non-secret defaults.
+services:
+  - type: web
+    name: dealcompare-backend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: "8000"
+      - key: HEADLESS_BROWSER
+        value: "true"
+      - key: LOG_LEVEL
+        value: "INFO"
+      - key: METRICS_ENABLED
+        value: "true"
+      - key: RATE_LIMIT_ENABLED
+        value: "false"
