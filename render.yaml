@@ -17,6 +17,8 @@ services:
     envVars:
       - key: PORT
         value: "8000"
+      - key: PLAYWRIGHT_BROWSERS_PATH
+        value: "/ms-playwright"
       - key: HEADLESS_BROWSER
         value: "true"
       - key: LOG_LEVEL
