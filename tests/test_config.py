@@ -16,7 +16,10 @@ def _clear_settings_cache():
 def test_defaults_preserve_previous_hardcoded_values():
     s = Settings(_env_file=None)
     assert s.amazon_base_url == "https://www.amazon.in"
-    assert s.user_agent == "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    assert s.user_agent == (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    )
     assert s.headless_browser is True
     assert s.page_load_timeout_ms == 60000
     assert s.selector_timeout_ms == 20000

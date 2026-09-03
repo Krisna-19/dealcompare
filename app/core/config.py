@@ -23,7 +23,10 @@ class Settings(BaseSettings):
     flipkart_base_url: str = "https://www.flipkart.com"
     myntra_base_url: str = "https://www.myntra.com"
     ajio_base_url: str = "https://www.ajio.com"
-    user_agent: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    user_agent: str = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    )
     # Headless is the recommended/default production configuration: servers
     # have no display, and a visible browser wastes resources on a deployment.
     # Set HEADLESS_BROWSER=false only for local, visible-browser debugging.
