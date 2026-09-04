@@ -45,6 +45,7 @@ def test_defaults_preserve_previous_hardcoded_values():
         "http://localhost:5500",
         "http://127.0.0.1:5500",
         "https://dealcompare.in",
+        "https://dealcompare.onrender.com",
     ]
     assert s.http_proxies_list == [None]
 

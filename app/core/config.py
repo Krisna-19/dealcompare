@@ -92,7 +92,8 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173,"
         "http://localhost:5500,"
         "http://127.0.0.1:5500,"
-        "https://dealcompare.in"
+        "https://dealcompare.in,"
+        "https://dealcompare.onrender.com"
     )
 
     # --- Observability ---------------------------------------------------------

@@ -6,6 +6,7 @@ client = TestClient(app)
 
 ALLOWED_DEV_ORIGIN = "http://localhost:5173"
 ALLOWED_PROD_ORIGIN = "https://dealcompare.in"
+ALLOWED_RENDER_PROD_ORIGIN = "https://dealcompare.onrender.com"
 DISALLOWED_ORIGIN = "https://evil.example"
 
 
@@ -34,6 +35,19 @@ def test_preflight_from_allowed_production_origin_is_accepted():
 
     assert res.status_code == 200
     assert res.headers["access-control-allow-origin"] == ALLOWED_PROD_ORIGIN
+
+
+def test_preflight_from_allowed_render_production_origin_is_accepted():
+    res = client.options(
+        "/search",
+        headers={
+            "Origin": ALLOWED_RENDER_PROD_ORIGIN,
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+
+    assert res.status_code == 200
+    assert res.headers["access-control-allow-origin"] == ALLOWED_RENDER_PROD_ORIGIN
 
 
 def test_preflight_from_disallowed_origin_is_rejected():
