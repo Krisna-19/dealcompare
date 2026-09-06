@@ -10,6 +10,17 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
+/* The free-tier backend can take ~110s (Amazon source timeout + Playwright
+   scrapes). Timeout above that worst case so a slow-but-alive search is never
+   aborted early, and add one retry to ride out a cold-start connection drop. */
+const SEARCH_TIMEOUT_MS = 140000;
+
+function fetchWithTimeout(url, timeoutMs = SEARCH_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
 /* CATEGORY → ICON MAP */
 const CATEGORY_ICONS = {
   Fashion: "👕",
@@ -58,9 +69,18 @@ export default function Home() {
     setSortMode("best-deal");
 
     try {
-      const res = await fetch(
-        `${API_BASE}/search?query=${encodeURIComponent(trimmed)}`
-      );
+      let res = null;
+      try {
+        res = await fetchWithTimeout(
+          `${API_BASE}/search?query=${encodeURIComponent(trimmed)}`
+        );
+      } catch {
+        // One retry: the first attempt may be dropped during the free-tier
+        // cold start; the retry hits a warm instance and typically succeeds.
+        res = await fetchWithTimeout(
+          `${API_BASE}/search?query=${encodeURIComponent(trimmed)}`
+        );
+      }
 
       if (!res.ok) throw new Error("API error");
 
