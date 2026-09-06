@@ -1,35 +1,41 @@
 """
 Myntra scraper — real product data from myntra.com search results.
 
-Myntra renders its search results with client-side JavaScript: a plain HTTP
-response only returns the application shell (the product cards are injected
-by the browser).  To stay consistent with the existing Amazon/Flipkart
-adapters we therefore read the rendered DOM with the project's shared
-Playwright browser strategy.
+Two retrieval paths, both returning the same shared DealCompare contract:
 
-Extraction strategy:
-  1. Navigate the browser to Myntra's path-based search URL.
-  2. Read the product cards (`li.product-base`) structurally inside a single
-     page.evaluate call — Myntra's card markup is stable and class-based
-     (`.product-brand`, `.product-product`, `.product-price`, ...
-     `.product-discountedPrice`), but we defensively fall back when a field
-     is missing.
-  3. Normalise each raw record into the shared DealCompare product dict.
+1. HTTP (primary): Myntra servers render the full search results into the
+   initial HTML inside a `window.__myx` JSON blob (`searchData.results.
+   products`).  A plain `requests` GET (HTTP/1.1) fetches that and we parse
+   the embedded products.  This avoids the Chromium HTTP/2 handshake that
+   Myntra intermittently resets (`ERR_HTTP2_PROTOCOL_ERROR`), which used to
+   make the browser path return zero results even though the data was served.
+
+2. Playwright (fallback): the original browser strategy.  It navigates to the
+   path-based search URL and reads the rendered product cards (`li.product-
+   base`) structurally inside a single page.evaluate call.  Kept as a fallback
+   so that if the HTTP path is unavailable, errors, or returns invalid/empty
+   data we still attempt live extraction.
+
+Normalisation, price parsing, deduplication and product-key logic are shared
+by both paths (see normalise_myntra_product / _dedupe_by_product_key).
 
 Failure contract:
-  - On any error (markup change, Myntra blocking the request, browser
+  - On any error (markup change, Myntra blocking the request, browser or HTTP
     failure) return [] (honest empty for this source).
   - Never fabricate products, prices, or URLs.
   - Never raise — the pipeline already wraps calls defensively.
 """
 
+import json
 import logging
 import re
 from urllib.parse import quote_plus
 
+import requests
 from playwright.sync_api import sync_playwright
 
 from app.core.config import get_settings
+from app.utils.http_client import get_headers
 from app.utils.text_utils import generate_product_key
 from app.services.ranking_service import calculate_match_score
 
@@ -223,13 +229,173 @@ def _dedupe_by_product_key(products):
     return list(seen.values())
 
 
-def search_myntra(query: str):
-    """
-    Search Myntra for products matching *query*.
+# ---------------------------------------------------------------------------
+# HTTP retrieval path (primary)
+#
+# Myntra embeds the full search results into the initial HTML inside a
+# `window.__myx` JSON blob under `searchData.results.products`.  A plain HTTP
+# GET avoids the Chromium HTTP/2 handshake that Myntra intermittently resets,
+# so this path restores real results where the browser path returns nothing.
+# ---------------------------------------------------------------------------
 
-    Returns:
-        list[dict]: Normalised product dicts conforming to the shared
-        DealCompare contract.  On any failure, returns [].
+# Myntra preloads search results into window.__myx = {...};  the object is the
+# sole statement in its <script> tag and closes immediately before </script>.
+_MYX_MARKER = "window.__myx = "
+
+
+def _extract_html_products(html: str, query: str) -> list:
+    """
+    Pull the raw product records out of a Myntra search HTML page.
+
+    Parses the `window.__myx` JSON blob (`searchData.results.products`) and
+    maps each entry into the shared raw Myntra shape the normaliser expects:
+
+        {brand, name, price_text, url, image}
+
+    Returns [] when the JSON is missing/unparseable or there are no products.
+    Never fabricates data — only fields present in the source are mapped.
+    """
+    if not html:
+        return []
+
+    start = html.find(_MYX_MARKER)
+    if start == -1:
+        return []
+
+    end = html.find("</script>", start)
+    if end == -1:
+        return []
+
+    blob = html[start + len(_MYX_MARKER):end].strip()
+    if blob.endswith(";"):
+        blob = blob[:-1]
+
+    try:
+        data = json.loads(blob)
+    except (ValueError, TypeError):
+        return []
+
+    if not isinstance(data, dict):
+        return []
+
+    products = (
+        (data.get("searchData") or {}).get("results") or {}
+    ).get("products")
+    if not isinstance(products, list):
+        return []
+
+    raw = []
+    for p in products:
+        if not isinstance(p, dict):
+            continue
+
+        name = (p.get("productName") or p.get("product") or "").strip()
+        brand = (p.get("brand") or "").strip()
+        url = (p.get("landingPageUrl") or "").strip()
+
+        # Selling price is Myntra's price to display; falls back to MRP only
+        # when the selling price is unusable (kept real, never invented).
+        price = p.get("price")
+        try:
+            price = float(price) if price is not None else 0.0
+        except (TypeError, ValueError):
+            price = 0.0
+        if price <= 0:
+            mrp = p.get("mrp")
+            try:
+                price = float(mrp) if mrp is not None else 0.0
+            except (TypeError, ValueError):
+                price = 0.0
+        price_text = f"\u20b9{int(price)}" if price > 0 else ""
+
+        image = (p.get("searchImage") or "").strip()
+        # Myntra serves these on an http URL in the payload; https is safe.
+        if image.startswith("http://"):
+            image = "https://" + image[len("http://"):]
+
+        raw.append({
+            "brand": brand,
+            "name": name,
+            "price_text": price_text,
+            "url": url,
+            "image": image,
+        })
+
+    return raw
+
+
+def _fetch_myntra_http(query: str):
+    """
+    Fetch the Myntra search HTML over plain HTTP/1.1.
+
+    Returns the decoded page text on a 200, otherwise None.  Never raises —
+    network/protocol errors are converted to None so the caller can fall back
+    to the Playwright path.  Uses the shared request headers (UA + language).
+    """
+    settings = get_settings()
+    url = build_search_url(query)
+    try:
+        resp = requests.get(
+            url,
+            headers=get_headers(),
+            timeout=getattr(settings, "http_timeout_seconds", 8.0),
+        )
+    except requests.exceptions.RequestException as e:
+        logger.warning("Myntra HTTP request failed: %s", e)
+        return None
+
+    if resp.status_code != 200:
+        logger.warning("Myntra HTTP returned status %s", resp.status_code)
+        return None
+
+    resp.encoding = resp.apparent_encoding or resp.encoding
+    return resp.text
+
+
+def _normalise_html_products(raw_products: list, query: str) -> list:
+    """Normalise raw HTTP-extracted records into DealCompare offers."""
+    gathered = []
+    for raw in raw_products:
+        try:
+            normalised = normalise_myntra_product(raw, query)
+        except Exception as e:
+            logger.warning("Myntra HTTP normalise error: %s", e)
+            continue
+        if not normalised:
+            continue
+        gathered.append(normalised)
+        if len(gathered) >= get_settings().max_results_per_platform:
+            break
+    return _dedupe_by_product_key(gathered)
+
+
+def _search_myntra_http(query: str) -> list:
+    """
+    Run the Myntra HTTP retrieval path and normalise its products.
+
+    Returns [] (honest empty) on any HTTP failure, non-200, missing/invalid
+    embedded JSON, or when no usable offers survive normalisation — so the
+    caller can transparently fall back to the Playwright scraper.
+    """
+    html = _fetch_myntra_http(query)
+    if not html:
+        return []
+
+    raw_products = _extract_html_products(html, query)
+    if not raw_products:
+        return []
+
+    results = _normalise_html_products(raw_products, query)
+    logger.info("Myntra HTTP path: %d results", len(results))
+    return results
+
+
+def _search_myntra_scraper(query: str) -> list:
+    """
+    Run the existing Playwright browser scraper for *query*.
+
+    Extracted to its own helper (preserved behaviour) so search_myntra() can
+    try the HTTP path first and fall back here.
     """
     settings = get_settings()
     url = build_search_url(query)
@@ -296,3 +462,29 @@ def search_myntra(query: str):
     except Exception as e:
         logger.error("Myntra scraping error: %s", e)
         return []
+
+
+def search_myntra(query: str):
+    """
+    Search Myntra for products matching *query*.
+
+    Retrieval dispatch:
+      - Primary: the HTTP path (plain GET + embedded `window.__myx` JSON),
+        which avoids the Chromium HTTP/2 reset that blocks the browser path.
+      - Fallback: the existing Playwright browser scraper, used whenever the
+        HTTP path is unavailable, errors, returns invalid/empty data, or
+        fails to parse.
+
+    Returns:
+        list[dict]: Normalised product dicts conforming to the shared
+        DealCompare contract.  On any failure, returns [].
+    """
+    http_results = _search_myntra_http(query)
+    if http_results:
+        logger.info("Myntra used HTTP path: %d results", len(http_results))
+        return http_results
+
+    logger.warning(
+        "Myntra HTTP path returned no usable results; falling back to Playwright"
+    )
+    return _search_myntra_scraper(query)
