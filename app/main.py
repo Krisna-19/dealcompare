@@ -2,6 +2,8 @@ import logging
 import time
 from collections import defaultdict, deque
 
+from app.core.request_context import new_request_id, request_id_var, RequestIdFilter
+
 from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
@@ -24,8 +26,14 @@ from app.models.product_model import SearchResponse
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    format="%(asctime)s [%(levelname)s] %(name)s [request_id=%(request_id)s]: %(message)s",
 )
+# Stamp every record (including scraper threads) with the active request id so
+# scraper results can be correlated with search_service's platform counts.
+# The filter must live on the root HANDLERS: records emitted by child loggers
+# (app.scrapers.*, app.services.*) only pass through handler-level filters.
+for _handler in logging.getLogger().handlers:
+    _handler.addFilter(RequestIdFilter())
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +181,23 @@ async def per_ip_rate_limit(request: Request, call_next):
 
 @app.get("/search", response_model=SearchResponse)
 async def search(query: str = Query(...)):
+    """Trace an entire /search through scraping and aggregation.
+
+    Generates one request_id, stamps it into the context so every log line
+    from the scraper threads and search_service carries it, and resets it when
+    the request finishes (raising included).  Delegates all processing to the
+    unchanged _search_impl body.
+    """
+    request_id = new_request_id()
+    token = request_id_var.set(request_id)
+    try:
+        logger.info("Search request %s: query='%s'", request_id, query.strip())
+        return await _search_impl(query)
+    finally:
+        request_id_var.reset(token)
+
+
+async def _search_impl(query: str):
 
     q = query.strip()
     if not q:
