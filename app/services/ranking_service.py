@@ -287,6 +287,37 @@ def _query_has_laptop_type(query):
     return bool(meaningful & (_laptop_tokens | {"chromebook"}))
 
 
+def _tokens_relevant(query_tokens, title_words):
+    """
+    True if any meaningful query token is relevant to a product title's words.
+
+    An exact token match wins immediately.  Otherwise a light singular/plural
+    normalization makes "shirts" (query) match "shirt" (title) and vice versa,
+    and "boxes" match "box".  Short tokens are never stripped so weak filler
+    cannot accidentally become relevant.
+    """
+    for t in query_tokens:
+        if t in title_words:
+            return True
+        stem = _token_stem(t)
+        if stem != t and any(_token_stem(w) == stem for w in title_words):
+            return True
+    return False
+
+
+def _token_stem(token):
+    """Singular/plural stem: 'shirts'->'shirt', 'boxes'->'box', 'stories'->'story'."""
+    if len(token) <= 3:
+        return token
+    if token.endswith("ies") and len(token) > 4:
+        return token[:-3] + "y"
+    if token.endswith("es"):
+        return token[:-2]
+    if token.endswith("s"):
+        return token[:-1]
+    return token
+
+
 def filter_irrelevant_products(products, query):
     """
     Remove products that are clearly off-topic for the given query.
@@ -359,7 +390,7 @@ def filter_irrelevant_products(products, query):
             if not _is_laptop_device(product.get("title", "")):
                 continue
             relevant.append(product)
-        elif any(t in title_words for t in query_tokens):
+        elif _tokens_relevant(query_tokens, title_words):
             relevant.append(product)
 
     return relevant

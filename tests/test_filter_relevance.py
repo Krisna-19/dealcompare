@@ -498,3 +498,55 @@ def test_case_j_laptop_bag_explicit_still_returns_bags():
     kept_titles = _kept_titles(filter_irrelevant_products(_LAPTOP_POOL, "laptop bag"))
     assert any("Laptop Bag" in t for t in kept_titles)
     assert any("Laptop Backpack" in t for t in kept_titles)
+
+
+# ---------------------------------------------------------------------------
+# CASE K — plural query matches singular product titles (and vice versa).
+#
+# Regression for the production bug where querying "shirts" returned
+# "No products found" even though Flipkart collected 8 shirts: the generic
+# relevance branch compared the plural query token "shirts" against the
+# singular title token "shirt" with exact membership, dropping every result.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("query", ["shirts", "shirt"])
+def test_case_k_plural_query_keeps_singular_title_shirts(query):
+    products = [
+        _offer("Men Regular Fit Shirt", "men-regular-fit-shirt", "Flipkart"),
+        _offer("Women Slim Fit T-Shirt", "women-slim-fit-tshirt", "Myntra"),
+        _offer("Samsung Refrigerator 400L Double Door",
+               "samsung-refrigerator-400l", "Flipkart"),
+    ]
+    kept = filter_irrelevant_products(products, query)
+    kept_titles = _kept_titles(kept)
+    if query == "shirts":
+        # plural query token "shirts" must match singular product token "shirt"
+        assert any("Regular Fit Shirt" in t for t in kept_titles)
+    else:
+        assert any("Regular Fit Shirt" in t for t in kept_titles)
+    # unrelated products are still rejected
+    assert not any("Refrigerator" in t for t in kept_titles)
+
+
+def test_case_k_plural_query_keeps_multiple_flipkart_shirts():
+    products = [
+        _offer(f"Men Regular Fit Shirt {i}", f"men-regular-fit-shirt-{i}",
+               "Flipkart") for i in range(8)
+    ]
+    kept = filter_irrelevant_products(products, "shirts")
+    assert len(kept) == 8
+
+
+def test_case_k_plural_stem_does_not_weaken_rejections():
+    """
+    Singular/plural matching must not make unrelated products relevant:
+    a one-off shared letter pattern (e.g. 'tshirt' vs 'shirt') still does not
+    match, and the exact-match precedence still holds.
+    """
+    products = [
+        _offer("Levis Men Slim Fit T-Shirt", "levis-men-slim-fit-tshirt", "Flipkart"),
+        _offer("Roadster Men Solid Casual Shirt", "roadster-men-solid-shirt", "Flipkart"),
+    ]
+    kept_titles = _kept_titles(filter_irrelevant_products(products, "tshirt men"))
+    assert any("T-Shirt" in t for t in kept_titles)
+    assert not any("Casual Shirt" in t for t in kept_titles)
