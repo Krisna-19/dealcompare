@@ -112,6 +112,47 @@ def clear_search_cache():
         _search_cache.clear()
 
 # ---------------------------------------------------------------------------
+# In-flight request coalescing.
+#
+# While a /search for a given normalized query is still running, a second
+# identical request should NOT start its own scrape pipeline (each of which
+# contends for a concurrency slot and spawns Chromium).  Instead it attaches
+# to the already-running pipeline and awaits the same outcome.
+#
+# Implementation: one dict per running event loop mapping normalized key ->
+# asyncio.Future.  The map is strictly bounded: an entry exists only while a
+# search for that query is genuinely in flight, and is always removed when the
+# pipeline finishes (success, empty, or raised).  This is NOT a result cache —
+# the persistent TTL cache above still decides whether a *completed* search is
+# reused; coalescing only collapses identical requests that overlap in time.
+# ---------------------------------------------------------------------------
+
+_coalesce_lock = Lock()
+_coalesce_map = {}  # running loop -> {normalized_key -> asyncio.Future}
+
+
+def _get_coalesce_map():
+    """Return the in-flight map for the current event loop.
+
+    Loop-scoped (like the semaphore) so production's single uvicorn loop holds
+    one map while tests, which spin up a fresh loop per asyncio.run() call, are
+    isolated from one another.  Entries for already-dead loops are pruned so
+    recycled loops never leak stale futures.
+    """
+    loop = asyncio.get_running_loop()
+    with _coalesce_lock:
+        dead = [l for l in _coalesce_map if l.is_closed()]
+        for l in dead:
+            _coalesce_map.pop(l, None)
+        return _coalesce_map.setdefault(loop, {})
+
+
+def clear_coalesce_map():
+    """Drop every in-flight coalescing entry (used by tests)."""
+    with _coalesce_lock:
+        _coalesce_map.clear()
+
+# ---------------------------------------------------------------------------
 # Source registry.
 #
 # To add a new e-commerce source:
@@ -162,29 +203,56 @@ async def search_all(query: str):
         logger.info("Cache hit for '%s' (%d products)", key, len(cached))
         return cached
 
-    sources = _resolve_sources()
-    semaphore = _get_scrape_semaphore()
+    coalesce_map = _get_coalesce_map()
+    in_flight = coalesce_map.get(key)
+    if in_flight is not None and not in_flight.done():
+        # An identical search is already running.  Share its outcome instead
+        # of opening a second scrape pipeline / consuming a concurrency slot.
+        logger.info("Coalescing into in-flight search for '%s'", key)
+        return await in_flight
 
-    results = await asyncio.gather(
-        *(_run_source_in_thread(fn, query, semaphore) for _, fn in sources)
-    )
+    # Check-and-insert happens synchronously (no await between the cache
+    # lookup above and the gather below), so two tasks cannot both miss and
+    # start a second pipeline for the same key on one event loop.
+    future = asyncio.get_running_loop().create_future()
+    coalesce_map[key] = future
 
-    source_counts = [
-        f"{name}: {len(items)}"
-        for (name, _), items in zip(sources, results)
-    ]
-    logger.info("Platform results — %s", ", ".join(source_counts))
+    try:
+        sources = _resolve_sources()
+        semaphore = _get_scrape_semaphore()
 
-    all_products = []
-    for items in results:
-        all_products.extend(items)
+        results = await asyncio.gather(
+            *(_run_source_in_thread(fn, query, semaphore) for _, fn in sources)
+        )
 
-    logger.info("Total products collected: %d", len(all_products))
+        source_counts = [
+            f"{name}: {len(items)}"
+            for (name, _), items in zip(sources, results)
+        ]
+        logger.info("Platform results — %s", ", ".join(source_counts))
 
-    if all_products:
-        _cache_store(key, all_products)
+        all_products = []
+        for items in results:
+            all_products.extend(items)
 
-    return all_products
+        logger.info("Total products collected: %d", len(all_products))
+
+        if all_products:
+            _cache_store(key, all_products)
+
+        if not future.done():
+            future.set_result(all_products)
+        return all_products
+    except Exception as e:
+        if not future.done():
+            future.set_exception(e)
+        raise
+    finally:
+        # Drop this key whether the pipeline produced results, returned empty,
+        # or raised, so the coalescing map stays bounded and a later identical
+        # request starts fresh (and, if it succeeded, hits the TTL cache).
+        if coalesce_map.get(key) is future:
+            del coalesce_map[key]
 
 
 def _release_when_done(task, semaphore):
