@@ -12,6 +12,8 @@ _AMAZON_ASIN_RE = re.compile(r"/dp/([A-Z0-9]{10})", re.IGNORECASE)
 _KEY_LABELS = (
     "brand", "model", "ram", "storage", "processor", "color", "edition", "model_no",
     "product_type", "pack_count", "size_cm",
+    "fit", "pattern", "collar", "sleeve", "fabric", "style", "clothing_size",
+    "descriptor",
 )
 
 

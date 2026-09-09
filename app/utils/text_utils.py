@@ -204,6 +204,151 @@ def _extract_product_type(joined):
 
 
 # ---------------------------------------------------------------------------
+# Apparel attribute extraction.
+#
+# Generic apparel titles ("Men Regular Fit Solid Spread Collar Formal Shirt")
+# carry little brand/model structure, so the electronics identity machinery
+# (which keys on the first meaningful tokens) collapses genuinely different
+# garments into one SKU.  For brand-less items we instead pull the concrete
+# descriptors a shirt/shoe/lower-body/outerwear title actually states — fit,
+# pattern, collar, sleeve, fabric, style and (conservative) clothing size — and
+# use those, together with product_type/color/size/pack, as the identity, so
+# two shirts are only grouped when their stated attributes genuinely agree.
+# ---------------------------------------------------------------------------
+
+# Apparel product-types that should use descriptor-based identity.
+_APPEAREL_TYPES = {
+    "shirt", "tshirt", "t-shirt", "tee", "kurta", "kurti", "dress", "gown",
+    "jeans", "trouser", "trousers", "pants", "shorts", "track pants", "joggers",
+    "saree", "skirt", "leggings", "tights", "shoes", "shoe", "sneaker",
+    "sneakers", "sandal", "sandals", "slippers", "boots", "boot", "loafers",
+    "socks", "gloves", "scarf", "cap", "hat", "beanie", "belt", "jacket",
+    "hoodie", "sweatshirt", "sweater", "pullover", "cardigan", "coat", "blazer",
+    "kurta", "tunic",
+}
+
+# Ordered longest-phrase-first so "button down" wins over a bare term.
+_FIT_TERMS = sorted(
+    ["slim fit", "regular fit", "relaxed fit", "tight fit", "loose fit",
+     "skinny fit", "tailored fit", "comfort fit", "straight fit", "tapered",
+     "oversized", "a-line", "fitted"],
+    key=lambda p: -len(p.split()),
+)
+
+_PATTERN_TERMS = sorted(
+    ["checked", "checkered", "check", "plaid", "striped", "stripes", "printed",
+     "print", "floral", "graphic", "embroidered", "solid", "plain", "denim",
+     "camo", "camouflage", "tie-dye", "polka", "textured", "woven", "paisley",
+     "geometric", "colourblock", "colorblock"],
+    key=lambda p: -len(p.split()),
+)
+
+_COLLAR_TERMS = sorted(
+    ["spread collar", "cutaway collar", "mandarin collar", "band collar",
+     "button down collar", "button-down", "pointed collar", "classic collar",
+     "polo collar", "oxford collar", "shirt collar", "collar"],
+    key=lambda p: -len(p.split()),
+)
+
+_SLEEVE_TERMS = sorted(
+    ["three quarter sleeve", "three-quarter", "half sleeve", "long sleeve",
+     "short sleeve", "full sleeve", "sleeveless", "rolled sleeve"],
+    key=lambda p: -len(p.split()),
+)
+
+_FABRIC_TERMS = sorted(
+    ["cotton", "denim", "linen", "polyester", "lycra", "spandex", "elastane",
+     "silk", "rayon", "viscose", "oxford", "poplin", "chambray", "twill",
+     "velvet", "wool", "knit", "jersey", "mesh", "corduroy", "pique", "georgette",
+     "chiffon", "modal", "fleece", "nylon", "crepe", "muslin"],
+    key=lambda p: -len(p.split()),
+)
+
+_STYLE_TERMS = sorted(
+    ["smart casual", "business casual", "formal", "casual", "party", "sports",
+     "sporty", "ethnic", "traditional", "wedding", "office", "festive",
+     "active", "athletic", "running", "gym", "daily", "regular"],
+    key=lambda p: -len(p.split()),
+)
+
+# Conservative whole-token clothing sizes.  Only multi-character sizes plus
+# single S/M/L markers are considered; matched only for genuine apparel so a
+# stray product letter cannot split unrelated items.
+_CLOTHING_SIZE_RE = re.compile(r"\b(?:xxxl|xxl|xl|3xl|s|m|l)\b")
+
+
+def _first_term(term_list, joined):
+    """The first phrase from *term_list* present in *joined* (longest-first)."""
+    for phrase in term_list:
+        if re.search(rf"\b{re.escape(phrase)}\b", joined):
+            return phrase
+    return None
+
+
+def _extract_clothing_size(joined):
+    """A clothing size token if one is stated, else None."""
+    m = _CLOTHING_SIZE_RE.search(joined)
+    return m.group(0).upper() if m else None
+
+
+def _extract_apparel_attrs(joined):
+    """Descriptor attributes for brand-less apparel products."""
+    return {
+        "fit": _first_term(_FIT_TERMS, joined),
+        "pattern": _first_term(_PATTERN_TERMS, joined),
+        "collar": _first_term(_COLLAR_TERMS, joined),
+        "sleeve": _first_term(_SLEEVE_TERMS, joined),
+        "fabric": _first_term(_FABRIC_TERMS, joined),
+        "style": _first_term(_STYLE_TERMS, joined),
+        "clothing_size": _extract_clothing_size(joined),
+    }
+
+
+# Word tokens that carry no identity signal in an apparel title and must never
+# be treated as a descriptor when deciding whether two garments are the same
+# product (gender/audience markers, function words, generic marketing filler).
+_APPAREL_DESCRIPTOR_SKIP = {
+    "men", "man", "boys", "girls", "kids", "women", "woman", "unisex", "male",
+    "female", "for", "with", "and", "the", "of", "in", "new", "latest", "wear",
+    "shop", "buy", "casuals", "wear",
+}
+
+
+def _extract_apparel_descriptor(tokens, attrs):
+    """
+    The meaningful leftover descriptor tokens of an apparel title — the words
+    that are neither generic filler nor already captured by a structured
+    attribute (fit/pattern/collar/sleeve/fabric/style/color/size/type).
+
+    This is what keeps "Men Regular Fit Solid Spread Collar Formal Shirt"
+    distinct from "Men Regular Fit Solid Casual Formal Shirt": even though both
+    share fit/pattern/style, the second carries the descriptor "casual" that
+    the first lacks.  Because only *present* tokens are retained (omitted ones
+    add nothing), a retailer that simply spells a title more briefly than
+    another still merges to the same descriptor — preserving cross-store
+    grouping of genuinely identical garments.
+    """
+    captured = set()
+    for value in attrs.values():
+        if isinstance(value, str):
+            captured.update(value.split())
+    seen = []
+    for token in tokens:
+        if token in _APPAREL_DESCRIPTOR_SKIP:
+            continue
+        if len(token) < 4:
+            continue
+        if token in captured:
+            continue
+        # Drop pure numeric tokens (model numbers, measurements).
+        if token.isdigit():
+            continue
+        if token not in seen:
+            seen.append(token)
+    return " ".join(seen) if seen else None
+
+
+# ---------------------------------------------------------------------------
 # Structured variant-attribute extraction.
 # ---------------------------------------------------------------------------
 
@@ -370,6 +515,14 @@ def extract_variant_attributes(text):
         "product_type": None,
         "pack_count": None,
         "size_cm": None,
+        "fit": None,
+        "pattern": None,
+        "collar": None,
+        "sleeve": None,
+        "fabric": None,
+        "style": None,
+        "clothing_size": None,
+        "descriptor": None,
     }
     if not text:
         return empty
@@ -401,6 +554,21 @@ def extract_variant_attributes(text):
     # (brand is set) must not gain a type so their grouping is unchanged.
     if not brand:
         attrs["product_type"] = _extract_product_type(joined)
+    # Apparel identity: brand-less garments must not be held together by the
+    # electronics "first meaningful tokens" prefix (which wrongly merges
+    # "Men Regular Fit Solid Spread Collar..." with "...Casual...").  For an
+    # apparel product type we drop that prefix as the model and instead key on
+    # the concrete descriptors stated in the title.  Electronics (brand set or
+    # no apparel product type) keep the existing model/RAM/storage/colour
+    # identity untouched.
+    if not brand and attrs["product_type"] in _APPEAREL_TYPES:
+        attrs["model"] = None
+        attrs.update(_extract_apparel_attrs(joined))
+        # Descriptor is a HARD identity signal: an empty string means "no
+        # extra descriptor word", so a shirt that adds a descriptor ("casual")
+        # stays distinct from one that does not, while two titles that both
+        # omit it (or both carry the same one) still merge.
+        attrs["descriptor"] = _extract_apparel_descriptor(tokens, attrs) or ""
     return attrs
 
 
