@@ -102,6 +102,23 @@ def _strong_platform_id(url, platform):
     return (f"{host}:{path.rstrip('/')}".lower(), None)
 
 
+def _strong_id_for_product(product):
+    """
+    Strong listing identity for one offer dict, preferring the explicit
+    Flipkart Affiliate API productId when present.
+
+    The API provides productId directly (independent of URL tracking noise);
+    it anchors same-listing grouping even when a URL lacks a parseable pid.
+    Falls back to the URL-derived identity for every other case so existing
+    scraper/Amazon behaviour is untouched.
+    """
+    platform = (product.get("platform") or "").strip().lower()
+    product_id = (product.get("product_id") or "").strip()
+    if platform == "flipkart" and product_id:
+        return ("flipkart:product_id", product_id)
+    return _strong_platform_id(product.get("url"), product.get("platform"))
+
+
 def _sku_key(attrs, product):
     """
     Canonical identity of the actual product/SKU described by an offer.
@@ -174,8 +191,15 @@ def _offer_identity(product):
     normalized = _normalize_offer_url(product.get("url"), product.get("platform"))
 
     if normalized is None:
-        # No URL: fall back to the available fields so same-store, same
-        # variant at the same price is still recognised as a duplicate.
+        # Explicit platform productId is the most stable identifier available:
+        # two API offers for the same listing share it even without a URL.
+        product_id = (product.get("product_id") or "").strip()
+        if product_id and platform == "flipkart":
+            return (platform, f"flipkart:pid:{product_id}", price)
+
+        # No URL and no productId: fall back to the available fields so
+        # same-store, same variant at the same price is still recognised as a
+        # duplicate.
         attrs = extract_variant_attributes(product.get("title") or "")
         return (
             platform,
@@ -222,7 +246,7 @@ def aggregate_products(products):
     for product in valid:
         attrs = extract_variant_attributes(product.get("title") or "")
         sku = _sku_key(attrs, product)
-        strong = _strong_platform_id(product.get("url"), product.get("platform"))
+        strong = _strong_id_for_product(product)
 
         matched = None
         for gi, rep in enumerate(representatives):
@@ -231,7 +255,7 @@ def aggregate_products(products):
                 sku,
                 _sku_key(rep_attrs, rep),
                 strong,
-                _strong_platform_id(rep.get("url"), rep.get("platform")),
+                _strong_id_for_product(rep),
             ):
                 matched = gi
                 break

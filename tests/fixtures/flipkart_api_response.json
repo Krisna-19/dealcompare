@@ -1,0 +1,75 @@
+{
+  "validFor": "2016-03-15T14:37:24.000Z",
+  "requestId": "test-request-01",
+  "productInfoList": [
+    {
+      "productBaseInfoV1": {
+        "productId": "MOBFHG3DGYYFNVQQ",
+        "title": "Apple iPhone 15 (Black, 128 GB)",
+        "productDescription": "Apple iPhone 15 smartphone, 128 GB.",
+        "imageUrls": {
+          "200x200": "https://rukminim2.flixcart.com/image/200/200/xif0q/mobile/o/5/h/-original-imagtc5fz9spysyk.jpeg",
+          "400x400": "https://rukminim2.flixcart.com/image/400/400/xif0q/mobile/o/5/h/-original-imagtc5fz9spysyk.jpeg",
+          "800x800": "https://rukminim2.flixcart.com/image/800/800/xif0q/mobile/o/5/h/-original-imagtc5fz9spysyk.jpeg"
+        },
+        "productFamily": [],
+        "maximumRetailPrice": { "amount": 79900.0, "currency": "INR" },
+        "flipkartSellingPrice": { "amount": 59900.0, "currency": "INR" },
+        "flipkartSpecialPrice": { "amount": 58999.0, "currency": "INR" },
+        "productUrl": "https://www.flipkart.com/apple-iphone-15-black-128-gb/p/itmbfhg3dgYYFNVQQ?pid=MOBFHG3DGYYFNVQQ&affid=testaffiliate",
+        "productNameFullyQualified": "Apple iPhone 15 (Black, 128 GB)",
+        "isAvailable": true,
+        "inStock": true,
+        "productBrand": "Apple",
+        "categoryPath": "Mobiles & Tablets > Mobiles"
+      },
+      "categorySpecificInfoV1": { "title": "Apple iPhone 15 (Black, 128 GB)" }
+    },
+    {
+      "productBaseInfoV1": {
+        "productId": "MOBGCNQFKY6YJPZQ",
+        "title": "Apple iPhone 15 (Blue, 128 GB)",
+        "productDescription": "Apple iPhone 15 smartphone, 128 GB.",
+        "imageUrls": {
+          "200x200": "https://rukminim2.flixcart.com/image/200/200/xif0q/mobile/d/4/h/-original-imagtc5fzdwqfwzh.jpeg",
+          "400x400": "https://rukminim2.flixcart.com/image/400/400/xif0q/mobile/d/4/h/-original-imagtc5fzdwqfwzh.jpeg",
+          "800x800": "https://rukminim2.flixcart.com/image/800/800/xif0q/mobile/d/4/h/-original-imagtc5fzdwqfwzh.jpeg"
+        },
+        "productFamily": [],
+        "maximumRetailPrice": { "amount": 79900.0, "currency": "INR" },
+        "flipkartSellingPrice": { "amount": 59900.0, "currency": "INR" },
+        "flipkartSpecialPrice": { "amount": 58999.0, "currency": "INR" },
+        "productUrl": "https://www.flipkart.com/apple-iphone-15-blue-128-gb/p/itmgcnqfkY6YJPZQ?pid=MOBGCNQFKY6YJPZQ&affid=testaffiliate",
+        "productNameFullyQualified": "Apple iPhone 15 (Blue, 128 GB)",
+        "isAvailable": true,
+        "inStock": true,
+        "productBrand": "Apple",
+        "categoryPath": "Mobiles & Tablets > Mobiles"
+      },
+      "categorySpecificInfoV1": { "title": "Apple iPhone 15 (Blue, 128 GB)" }
+    },
+    {
+      "productBaseInfoV1": {
+        "productId": "MOBH7GF3KQFTCEG5",
+        "title": "Samsung Galaxy S24 5G (Onyx Black, 128 GB)",
+        "productDescription": "Samsung Galaxy S24 5G smartphone.",
+        "imageUrls": {
+          "200x200": "https://rukminim2.flixcart.com/image/200/200/xif0q/mobile/q/t/4/-original-imagtg3kqftceg5.jpeg",
+          "400x400": "https://rukminim2.flixcart.com/image/400/400/xif0q/mobile/q/t/4/-original-imagtg3kqftceg5.jpeg",
+          "800x800": "https://rukminim2.flixcart.com/image/800/800/xif0q/mobile/q/t/4/-original-imagtg3kqftceg5.jpeg"
+        },
+        "productFamily": [],
+        "maximumRetailPrice": { "amount": 79999.0, "currency": "INR" },
+        "flipkartSellingPrice": { "amount": 64999.0, "currency": "INR" },
+        "flipkartSpecialPrice": { "amount": 63999.0, "currency": "INR" },
+        "productUrl": "https://www.flipkart.com/samsung-galaxy-s24-5g-onyx-black-128-gb/p/itmbh7gf3kqftceg5?pid=MOBH7GF3KQFTCEG5&affid=testaffiliate",
+        "productNameFullyQualified": "Samsung Galaxy S24 5G (Onyx Black, 128 GB)",
+        "isAvailable": true,
+        "inStock": true,
+        "productBrand": "Samsung",
+        "categoryPath": "Mobiles & Tablets > Mobiles"
+      },
+      "categorySpecificInfoV1": { "title": "Samsung Galaxy S24 5G (Onyx Black, 128 GB)" }
+    }
+  ]
+}

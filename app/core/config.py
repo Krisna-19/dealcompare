@@ -83,6 +83,28 @@ class Settings(BaseSettings):
     myntra_affiliate_tag: str = ""
     ajio_affiliate_tag: str = ""
 
+    # --- Flipkart Affiliate API -----------------------------------------------
+    # Optional official Flipkart Affiliate search API (affiliate.flipkart.com).
+    # Enabled only when FLIPKART_DATA_SOURCE=api AND both credentials below are
+    # non-empty; otherwise the existing Playwright scraper is used unchanged.
+    # Data source selector: "scraper" (default, preserve current behaviour) or
+    # "api" (use the Affiliate API first, falling back to the scraper).
+    flipkart_data_source: str = "scraper"
+    # Affiliate Tracking ID (e.g. "abc-21").  Keep empty in non-API mode.
+    flipkart_affiliate_id: str = ""
+    # Affiliate API Token issued on affiliate.flipkart.com.  Keep empty in
+    # non-API mode.  Never commit a real token to source control.
+    flipkart_affiliate_token: str = ""
+    # Base URL of the official Affiliate search API (v1.0 JSON).
+    flipkart_api_base_url: str = (
+        "https://affiliate-api.flipkart.net/affiliate/1.0"
+    )
+    # Number of results to request from the search API.  The documented API
+    # maximum is 10 and there is no pagination for search.
+    flipkart_api_result_count: int = 10
+    # API request timeout in seconds.
+    flipkart_api_timeout_seconds: float = 8.0
+
     # --- CORS ---------------------------------------------------------------
     # Comma-separated origin allow-list. Defaults keep local Vite dev servers
     # working plus the production site; "*" is discouraged (use only if you

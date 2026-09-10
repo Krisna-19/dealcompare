@@ -314,111 +314,179 @@ def _extract_from_dom(page):
 # Public API
 # ---------------------------------------------------------------------------
 
+def _scrape_flipkart(query: str, url: str) -> list:
+    """
+    Run one Flipkart scrape attempt for *query* against *url*.
+
+    A single browser session that navigates, extracts via __NEXT_DATA__ then
+    the DOM fallback, and returns normalised product dicts (possibly []).
+    Raising is intentionally left to the caller so it can distinguish a
+    transient empty scrape from a hard browser/page failure.
+    """
+    settings = get_settings()
+    results = []
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=settings.headless_browser)
+        context = browser.new_context(
+            user_agent=settings.user_agent,
+            viewport={"width": 1280, "height": 800},
+        )
+        page = context.new_page()
+
+        logger.debug("Opening Flipkart URL: %s", url)
+
+        page.goto(url, timeout=settings.page_load_timeout_ms)
+
+        # Close the login popup if it appears (common on Flipkart)
+        try:
+            close_btn = page.query_selector("button._2KpZ6l._2doB4z")
+            if close_btn:
+                close_btn.click()
+                page.wait_for_timeout(500)
+        except Exception:
+            pass
+
+        # --- Strategy 1: __NEXT_DATA__ JSON ---
+        raw_products = _extract_from_next_data(page)
+
+        if raw_products:
+            logger.debug(
+                "Flipkart __NEXT_DATA__: extracted %d raw products",
+                len(raw_products),
+            )
+            for raw in raw_products:
+                normalised = _normalise_next_data_product(raw)
+                if not normalised:
+                    continue
+
+                title = normalised["title"]
+                if len(title.split()) < 2:
+                    continue
+
+                score = calculate_match_score(query, title)
+                if score < settings.match_score_threshold:
+                    continue
+
+                results.append(normalised)
+
+                if len(results) >= settings.max_results_per_platform:
+                    break
+        else:
+            # --- Strategy 2: DOM fallback ---
+            logger.debug("Flipkart __NEXT_DATA__ unavailable, trying DOM")
+            dom_products = _extract_from_dom(page)
+            logger.debug("Flipkart DOM: extracted %d raw products", len(dom_products))
+
+            for raw in dom_products:
+                title = raw["title"]
+                if len(title.split()) < 2:
+                    continue
+
+                url = _absolute_url(raw["url"])
+                if not url:
+                    continue
+
+                product_key = generate_product_key(title)
+                if not product_key:
+                    continue
+
+                score = calculate_match_score(query, title)
+                if score < settings.match_score_threshold:
+                    continue
+
+                results.append({
+                    "title": title,
+                    "product_key": product_key,
+                    "platform": "Flipkart",
+                    "price_value": raw["price_value"],
+                    "price_display": raw["price_display"],
+                    "url": url,
+                    "image": raw["image"],
+                })
+
+                if len(results) >= settings.max_results_per_platform:
+                    break
+
+        browser.close()
+
+    return results
+
+
+def _search_flipkart_scraper(query: str) -> list:
+    """
+    Run the existing Playwright scraper for *query* (with its one empty-retry).
+
+    Preserved exactly: extracted to its own helper so search_flipkart() can
+    dispatch to the Affiliate API first and fall back here.
+    """
+    url = build_search_url(query)
+
+    # A single retry on an empty scrape: Flipkart intermittently serves a
+    # bot-challenge/captcha page to automated sessions (especially from
+    # datacenter IPs) that yields zero cards.  A second fresh browser session
+    # usually recovers, so a transient block never silently empties the whole
+    # /search response.  Hard load failures are NOT retried (they raise).
+    try:
+        results = _scrape_flipkart(query, url)
+    except Exception as e:
+        logger.warning("Flipkart page load failed: %s", e)
+        return []
+
+    if not results:
+        logger.warning("Flipkart returned 0 on first attempt; retrying once")
+        try:
+            results = _scrape_flipkart(query, url)
+        except Exception as e:
+            logger.error("Flipkart scraping error: %s", e)
+            return []
+
+    return results
+
+
+def _api_enabled() -> bool:
+    """True only when FLIPKART_DATA_SOURCE=api AND credentials are present.
+
+    Imported lazily so enabling the API is an explicit opt-in and never
+    affects the default (scraper) behaviour.
+    """
+    from app.scrapers.flipkart_api import api_enabled
+    return api_enabled()
+
+
+def _search_flipkart_api(query: str) -> list:
+    """Call the official Affiliate API adapter; safe to run only when enabled."""
+    from app.scrapers.flipkart_api import search_flipkart_api
+    return search_flipkart_api(query)
+
+
 def search_flipkart(query: str):
     """
     Search Flipkart for products matching *query*.
+
+    Data-source dispatch:
+      - When FLIPKART_DATA_SOURCE=api AND both Affiliate credentials are set,
+        try the official Affiliate API first.  If it returns results, they are
+        returned; otherwise we fall back to the existing Playwright scraper
+        (transparently).
+      - Otherwise, the existing Playwright scraper is used, unchanged.
 
     Returns:
         list[dict]: Normalised product dicts conforming to the shared
         DealCompare contract.  On failure, returns [].
     """
-    settings = get_settings()
-    url = build_search_url(query)
-    results = []
+    if _api_enabled():
+        logger.info("Flipkart data source: api (Affiliate API)")
+        api_results = _search_flipkart_api(query)
+        if api_results:
+            logger.info("Flipkart API returned: %d results", len(api_results))
+            return api_results
+        logger.warning(
+            "Flipkart API returned no usable results; falling back to scraper"
+        )
+    else:
+        logger.info("Flipkart data source: scraper (Playwright)")
 
-    try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=settings.headless_browser)
-            context = browser.new_context(
-                user_agent=settings.user_agent,
-                viewport={"width": 1280, "height": 800},
-            )
-            page = context.new_page()
-
-            logger.debug("Opening Flipkart URL: %s", url)
-
-            try:
-                page.goto(url, timeout=settings.page_load_timeout_ms)
-            except Exception as e:
-                logger.warning("Flipkart page load failed: %s", e)
-                browser.close()
-                return []
-
-            # Close the login popup if it appears (common on Flipkart)
-            try:
-                close_btn = page.query_selector("button._2KpZ6l._2doB4z")
-                if close_btn:
-                    close_btn.click()
-                    page.wait_for_timeout(500)
-            except Exception:
-                pass
-
-            # --- Strategy 1: __NEXT_DATA__ JSON ---
-            raw_products = _extract_from_next_data(page)
-
-            if raw_products:
-                logger.debug(
-                    "Flipkart __NEXT_DATA__: extracted %d raw products",
-                    len(raw_products),
-                )
-                for raw in raw_products:
-                    normalised = _normalise_next_data_product(raw)
-                    if not normalised:
-                        continue
-
-                    title = normalised["title"]
-                    if len(title.split()) < 2:
-                        continue
-
-                    score = calculate_match_score(query, title)
-                    if score < settings.match_score_threshold:
-                        continue
-
-                    results.append(normalised)
-
-                    if len(results) >= settings.max_results_per_platform:
-                        break
-            else:
-                # --- Strategy 2: DOM fallback ---
-                logger.debug("Flipkart __NEXT_DATA__ unavailable, trying DOM")
-                dom_products = _extract_from_dom(page)
-                logger.debug("Flipkart DOM: extracted %d raw products", len(dom_products))
-
-                for raw in dom_products:
-                    title = raw["title"]
-                    if len(title.split()) < 2:
-                        continue
-
-                    url = _absolute_url(raw["url"])
-                    if not url:
-                        continue
-
-                    product_key = generate_product_key(title)
-                    if not product_key:
-                        continue
-
-                    score = calculate_match_score(query, title)
-                    if score < settings.match_score_threshold:
-                        continue
-
-                    results.append({
-                        "title": title,
-                        "product_key": product_key,
-                        "platform": "Flipkart",
-                        "price_value": raw["price_value"],
-                        "price_display": raw["price_display"],
-                        "url": url,
-                        "image": raw["image"],
-                    })
-
-                    if len(results) >= settings.max_results_per_platform:
-                        break
-
-            browser.close()
-
-        logger.info("Flipkart returned: %d results", len(results))
-        return results
-
-    except Exception as e:
-        logger.error("Flipkart scraping error: %s", e)
-        return []
+    results = _search_flipkart_scraper(query)
+    logger.info("Flipkart returned: %d results", len(results))
+    return results
