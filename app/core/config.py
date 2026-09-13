@@ -55,6 +55,21 @@ class Settings(BaseSettings):
     search_cache_enabled: bool = True
     search_cache_ttl_seconds: float = 300.0
 
+    # --- Product catalog persistence ----------------------------------------
+    # Buyhatke-style foundation: persist normalized offers (canonical
+    # products, offers, price history, marketplace health, per-query search
+    # index) to a restart-safe JSON store (app/storage/store.py).  Set
+    # CATALOG_DATA_DIR / DEALCOMPARE_DATA_DIR to a persistent disk so the
+    # catalog survives restarts and redeploys.  The store fails open: any
+    # catalog error degrades the pipeline to today's live-only behaviour.
+    catalog_enabled: bool = True
+    catalog_data_dir: str = "./data"
+    # While younger than this many seconds, stored offers for a query are
+    # served WITHOUT re-scraping (fast, stable, marketplace-consistent).
+    stored_search_freshness_seconds: float = 86400.0
+    # Per-offer price-history depth kept in the catalog.
+    price_history_limit: int = 50
+
     # --- Production hardening ------------------------------------------------
     # Global cap on simultaneous browser/scrape sessions across ALL in-flight
     # requests (per process).  Prevents the API from spawning unlimited

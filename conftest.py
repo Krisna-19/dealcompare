@@ -9,17 +9,24 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def _reset_search_cache():
+def _reset_search_cache(tmp_path, monkeypatch):
     """
-    Fresh search response cache for every test.
+    Fresh in-memory search cache and an isolated catalog store per test.
 
     Several suites reuse the same query string (e.g. "iphone 15") with
-    different mocked scrapers; the search cache must never leak a result
-    from one test into another.
+    different mocked scrapers; the search cache AND the persisted catalog
+    must never leak a result from one test into another.  The catalog store
+    is pointed at a per-test tmp dir and its singleton dropped, so the
+    catalog-based "stored offers first" path is exercised in isolation.
     """
     from app.services.search_service import clear_search_cache
+    from app.storage.store import reset_store
+
+    monkeypatch.setenv("DEALCOMPARE_DATA_DIR", str(tmp_path / "catalog"))
+    reset_store()
     clear_search_cache()
     yield
+    reset_store()
     clear_search_cache()
 
 

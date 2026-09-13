@@ -25,5 +25,12 @@ services:
         value: "INFO"
       - key: METRICS_ENABLED
         value: "true"
+      # The JSON catalog needs a persistent disk (it is written to ./data).
+      # Render's Free plan has NO persistent disk: the file would be lost on
+      # every redeploy, so the catalog is disabled there.  The implementation
+      # stays available -- set CATALOG_ENABLED=true (or drop this var) once the
+      # service runs with a mounted persistent volume + DEALCOMPARE_DATA_DIR.
+      - key: CATALOG_ENABLED
+        value: "false"
       - key: RATE_LIMIT_ENABLED
         value: "false"

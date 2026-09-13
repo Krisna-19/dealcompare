@@ -1,10 +1,10 @@
 import asyncio
 import logging
-import sys
 import time
 from threading import Lock
 
 from app.core.config import get_settings
+from app.connectors.registry import DEFAULT_CONNECTORS
 from app.scrapers.amazon import search_amazon
 from app.scrapers.flipkart import search_flipkart
 from app.scrapers.myntra import search_myntra
@@ -153,32 +153,29 @@ def clear_coalesce_map():
         _coalesce_map.clear()
 
 # ---------------------------------------------------------------------------
-# Source registry.
+# Source registry (markets as first-class connectors).
+#
+# Every marketplace is described by a MarketplaceConnector (key, display name,
+# retrieval kind) backed by a search_<source> callable that conforms to the
+# protocol documented in app/scrapers/protocol.py.  The connector list is
+# declared in app/connectors/registry.py; callables are resolved dynamically
+# from THIS module's attributes so monkeypatching in tests keeps working.
 #
 # To add a new e-commerce source:
 #   1. Create app/scrapers/<source>.py with a search_<source>(query) -> list[dict]
-#   2. Import it above
-#   3. Append ("Display Name", "search_<name>") to _SOURCE_REGISTRY below
-#
-# Each callable must conform to the protocol documented in
-# app/scrapers/protocol.py.
+#   2. Append a MarketplaceConnector to app/connectors/registry.py
 # ---------------------------------------------------------------------------
-_SOURCE_REGISTRY = [
-    ("Amazon", "search_amazon"),
-    ("Flipkart", "search_flipkart"),
-    ("Myntra", "search_myntra"),
-    ("Ajio", "search_ajio"),
-]
+
+_CONNECTORS = DEFAULT_CONNECTORS
 
 
 def _resolve_sources():
-    """Resolve (name, callable) pairs from this module's current attributes.
+    """Resolve [(connector, callable), ...] from this module's attributes.
 
     Resolving at call time (rather than caching at import time) ensures that
     monkeypatching in tests takes effect.
     """
-    mod = sys.modules[__name__]
-    return [(name, getattr(mod, attr)) for name, attr in _SOURCE_REGISTRY]
+    return [(connector, connector.resolve()) for connector in _CONNECTORS]
 
 
 def _run_source(source, query):
@@ -193,6 +190,74 @@ def _run_source(source, query):
         return []
 
 
+# ---------------------------------------------------------------------------
+# Catalog (persisted-offers) integration.
+#
+# The catalog turns the API into a comparison platform that accumulates real
+# observed offers over time.  It fails open: any catalog lookup or write error
+# (missing data dir, corrupted file, disk full) merely degrades the pipeline
+# to today's live-only behaviour and never fails a search.
+# ---------------------------------------------------------------------------
+
+def _catalog_enabled() -> bool:
+    """True when persistence is switched on (defensive vs test settings)."""
+    return bool(getattr(get_settings(), "catalog_enabled", True))
+
+
+def _stored_search_offers(key):
+    """Stored (previously observed) offers for *key* when fresh, else None.
+
+    Serves cached real offers WITHOUT re-scraping -- and, unlike the in-memory
+    cache, it survives restarts/redeploys -- while the stored snapshot is
+    younger than search_cache_ttl_seconds (bounded by the explicit
+    stored_search_freshness_seconds cap).  Honest empty semantics are
+    preserved: a query with no stored offers still runs the live pipeline, and
+    disabling the search cache disables stored serving too.
+    """
+    settings = get_settings()
+    if not _catalog_enabled() or not getattr(settings, "search_cache_enabled", True):
+        return None
+    try:
+        from app.storage.store import get_store
+        cache_ttl = float(getattr(settings, "search_cache_ttl_seconds", 300.0))
+        stored_freshness = float(
+            getattr(settings, "stored_search_freshness_seconds", 86400.0)
+        )
+        freshness = min(cache_ttl, stored_freshness)
+        stored = get_store().search_offers(key, max_age_seconds=freshness)
+    except Exception as e:
+        logger.warning("Catalog lookup failed: %r", e)
+        return None
+    if stored:
+        logger.info("Serving %d stored offers for '%s'", len(stored), key)
+        return stored
+    return None
+
+
+def _persist_results(query_key, query, all_products, sources, results):
+    """Best-effort persistence of a fresh non-empty search into the catalog."""
+    if not _catalog_enabled() or not all_products:
+        return
+    try:
+        from app.storage.store import get_store
+        get_store().upsert_search_results(
+            query_key,
+            query,
+            all_products,
+            source_updates=[
+                {
+                    "key": connector.key,
+                    "display_name": connector.display_name,
+                    "kind": connector.kind,
+                    "ok": bool(items),
+                }
+                for (connector, _), items in zip(sources, results)
+            ],
+        )
+    except Exception as e:
+        logger.warning("Catalog persistence failed: %r", e)
+
+
 async def search_all(query: str):
 
     logger.info("Searching for: %s", query)
@@ -202,6 +267,10 @@ async def search_all(query: str):
     if cached is not None:
         logger.info("Cache hit for '%s' (%d products)", key, len(cached))
         return cached
+
+    stored = _stored_search_offers(key)
+    if stored is not None:
+        return stored
 
     coalesce_map = _get_coalesce_map()
     in_flight = coalesce_map.get(key)
@@ -226,8 +295,8 @@ async def search_all(query: str):
         )
 
         source_counts = [
-            f"{name}: {len(items)}"
-            for (name, _), items in zip(sources, results)
+            f"{connector.display_name}: {len(items)}"
+            for (connector, _), items in zip(sources, results)
         ]
         logger.info("Platform results — %s", ", ".join(source_counts))
 
@@ -239,6 +308,7 @@ async def search_all(query: str):
 
         if all_products:
             _cache_store(key, all_products)
+            _persist_results(key, query, all_products, sources, results)
 
         if not future.done():
             future.set_result(all_products)

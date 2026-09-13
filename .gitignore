@@ -1,6 +1,12 @@
 # Environment / secrets
 .env
 
+# Local catalog/data files (app/storage/store.py writes catalog.json into
+# DEALCOMPARE_DATA_DIR or the default ./data).  Never commit runtime data.
+data/
+catalog.json
+*.catalog.json.tmp
+
 # Python artifacts
 venv/
 .venv/
