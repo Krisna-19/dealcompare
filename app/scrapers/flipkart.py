@@ -444,18 +444,8 @@ def _search_flipkart_scraper(query: str) -> list:
     return results
 
 
-def _api_enabled() -> bool:
-    """True only when FLIPKART_DATA_SOURCE=api AND credentials are present.
-
-    Imported lazily so enabling the API is an explicit opt-in and never
-    affects the default (scraper) behaviour.
-    """
-    from app.scrapers.flipkart_api import api_enabled
-    return api_enabled()
-
-
 def _search_flipkart_api(query: str) -> list:
-    """Call the official Affiliate API adapter; safe to run only when enabled."""
+    """Call the official Affiliate API adapter."""
     from app.scrapers.flipkart_api import search_flipkart_api
     return search_flipkart_api(query)
 
@@ -464,29 +454,29 @@ def search_flipkart(query: str):
     """
     Search Flipkart for products matching *query*.
 
-    Data-source dispatch:
-      - When FLIPKART_DATA_SOURCE=api AND both Affiliate credentials are set,
-        try the official Affiliate API first.  If it returns results, they are
-        returned; otherwise we fall back to the existing Playwright scraper
-        (transparently).
-      - Otherwise, the existing Playwright scraper is used, unchanged.
+    Data-source dispatch — FLIPKART_DATA_SOURCE is the SOLE selector:
+      - "api"      -> official Affiliate API ONLY.  Missing credentials,
+        network errors, or an empty response return [] (honest empty)
+        immediately.  The Playwright scraper is NEVER launched while the API
+        data source is selected.
+      - otherwise  -> legacy Playwright scraper (the default), unchanged.
 
     Returns:
         list[dict]: Normalised product dicts conforming to the shared
         DealCompare contract.  On failure, returns [].
     """
-    if _api_enabled():
-        logger.info("Flipkart data source: api (Affiliate API)")
-        api_results = _search_flipkart_api(query)
-        if api_results:
-            logger.info("Flipkart API returned: %d results", len(api_results))
-            return api_results
-        logger.warning(
-            "Flipkart API returned no usable results; falling back to scraper"
-        )
-    else:
-        logger.info("Flipkart data source: scraper (Playwright)")
+    if get_settings().flipkart_data_source.strip().lower() == "api":
+        logger.info("Flipkart data source: api (Affiliate API only)")
+        results = _search_flipkart_api(query)
+        if results:
+            logger.info("Flipkart API returned: %d results", len(results))
+        else:
+            logger.warning(
+                "Flipkart API returned no usable results; returning honest empty"
+            )
+        return results
 
+    logger.info("Flipkart data source: scraper (Playwright)")
     results = _search_flipkart_scraper(query)
     logger.info("Flipkart returned: %d results", len(results))
     return results

@@ -319,18 +319,22 @@ def test_e2e_shirts_filters_out_of_stock_and_cheapest_valid_wins(monkeypatch):
     assert "Out of" not in serialized
 
 
-def test_e2e_scraper_fallback_when_api_empty_keeps_contract(monkeypatch):
+def test_e2e_api_mode_empty_never_uses_scraper(monkeypatch):
     """
-    When the API is enabled but returns nothing usable, search_flipkart falls
-    back to the scraper path; the response contract and honest-empty handling
-    must remain intact.
+    FLIPKART_DATA_SOURCE=api: when the Affiliate API returns nothing usable,
+    /search returns an honest empty ("No products found").  The scraper is
+    stubbed to a fake that MUST NOT be called — api mode never falls back to
+    Playwright and never fabricates offers.
     """
     _enable_api(monkeypatch)
     _stub_other_sources(monkeypatch, {})
     api_calls = _stub_flipkart_http(monkeypatch, '{"productInfoList": []}')
 
-    monkeypatch.setattr(
-        flipkart, "_search_flipkart_scraper", lambda q: [
+    scraper_calls = {"n": 0}
+
+    def fake_scraper(q):
+        scraper_calls["n"] += 1
+        return [
             {
                 "title": "OnePlus Nord CE 4 (Blue, 128 GB)",
                 "product_key": "oneplus-nord-ce-4-blue-128gb",
@@ -341,18 +345,17 @@ def test_e2e_scraper_fallback_when_api_empty_keeps_contract(monkeypatch):
                 "image": "",
             }
         ]
-    )
+
+    monkeypatch.setattr(flipkart, "_search_flipkart_scraper", fake_scraper)
 
     res = client.get("/search", params={"query": "oneplus nord"})
 
     assert res.status_code == 200
-    data = res.json()
     assert api_calls["n"] == 1
-    assert data["message"] == "Products compared successfully"
-    assert len(data["results"]) == 1
-    offer = data["results"][0]["offers"][0]
-    assert offer["platform"] == "Flipkart"
-    assert offer["url"].startswith("https://www.flipkart.com/")
+    assert scraper_calls["n"] == 0
+    data = res.json()
+    assert data["message"] == "No products found"
+    assert data["results"] == []
 
 
 def test_e2e_product_id_drives_pipeline_grouping_not_response(monkeypatch):

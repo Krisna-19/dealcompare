@@ -2,11 +2,12 @@
 Deterministic Flipkart Affiliate API tests.
 
 Cover: URL building, credential/data-source gating, response parsing,
-normalisation, dispatcher (API-first) selection, and API -> scraper fallback.
+normalisation, dispatcher selection, and the API-only guarantee (the
+Playwright scraper is never reached while the API data source is selected).
 
 No live network calls.  The HTTP layer is stubbed (monkeypatch on
 requests.get) and the Playwright scraper is replaced with a fake so the
-dispatcher fallback path is exercised without launching a browser.
+dispatcher selection is exercised without launching a browser.
 """
 
 import json
@@ -390,13 +391,45 @@ def test_search_returns_empty_on_invalid_body(monkeypatch):
     assert flipkart_api.search_flipkart_api("iphone") == []
 
 
-# --- Dispatcher: API-first + scraper fallback ------------------------------
+# --- Dispatcher: data-source selection, API never falls back to scraper -----
 
 def _stub_scraper(monkeypatch, result):
     """Replace the real Playwright scraper with a deterministic fake."""
     monkeypatch.setattr(
         flipkart, "_search_flipkart_scraper", lambda query: result
     )
+
+
+def _stub_scraper_recorder(monkeypatch):
+    """Replace the scraper with a counting fake that would serve fake results."""
+    calls = {"n": 0}
+
+    def fake_scraper(query):
+        calls["n"] += 1
+        return [{
+            "title": "must-not-be-served",
+            "product_key": "must-not-be-served",
+            "platform": "Flipkart",
+            "price_value": 1,
+            "price_display": "\u20b91",
+            "url": "https://www.flipkart.com/x",
+            "image": "",
+        }]
+
+    monkeypatch.setattr(flipkart, "_search_flipkart_scraper", fake_scraper)
+    return calls
+
+
+def _stub_api_recorder(monkeypatch):
+    """Stub the Affiliate HTTP layer with a recorder that serves no results."""
+    calls = {"n": 0}
+
+    def fake_get(url, **kwargs):
+        calls["n"] += 1
+        return FakeResponse(200, '{"productInfoList": []}')
+
+    monkeypatch.setattr(flipkart_api.requests, "get", fake_get)
+    return calls
 
 
 def test_search_flipkart_uses_api_when_enabled(monkeypatch):
@@ -424,7 +457,8 @@ def test_search_flipkart_uses_api_when_enabled(monkeypatch):
     assert results and results[0]["title"] == "Apple iPhone 15 (Black, 128 GB)"
 
 
-def test_search_flipkart_falls_back_when_api_empty(monkeypatch):
+def test_search_flipkart_api_mode_empty_never_invokes_scraper(monkeypatch):
+    """api mode + empty API payload -> [] (honest empty), scraper NOT called."""
     _enable_api(monkeypatch)
     api_calls = {"n": 0}
 
@@ -433,15 +467,15 @@ def test_search_flipkart_falls_back_when_api_empty(monkeypatch):
         return FakeResponse(200, '{"productInfoList": []}')
 
     monkeypatch.setattr(flipkart_api.requests, "get", fake_get)
-    _stub_scraper(monkeypatch, [{"title": "from-scraper"}])
+    scraper_calls = _stub_scraper_recorder(monkeypatch)
 
-    results = flipkart.search_flipkart("iphone")
-
+    assert flipkart.search_flipkart("iphone") == []
     assert api_calls["n"] == 1
-    assert results == [{"title": "from-scraper"}]
+    assert scraper_calls["n"] == 0
 
 
-def test_search_flipkart_falls_back_when_api_http_error(monkeypatch):
+def test_search_flipkart_api_mode_http_error_never_invokes_scraper(monkeypatch):
+    """api mode + HTTP error -> [] (honest empty), scraper NOT called."""
     _enable_api(monkeypatch)
 
     import requests
@@ -450,40 +484,58 @@ def test_search_flipkart_falls_back_when_api_http_error(monkeypatch):
         raise requests.exceptions.Timeout()
 
     monkeypatch.setattr(flipkart_api.requests, "get", fake_get)
-    _stub_scraper(monkeypatch, [{"title": "from-scraper"}])
-
-    results = flipkart.search_flipkart("iphone")
-    assert results == [{"title": "from-scraper"}]
-
-
-def test_search_flipkart_falls_back_when_api_returns_nothing(monkeypatch):
-    _enable_api(monkeypatch)
-
-    def fake_get(url, **kwargs):
-        return FakeResponse(200, "")
-
-    monkeypatch.setattr(flipkart_api.requests, "get", fake_get)
-    _stub_scraper(monkeypatch, [])
+    scraper_calls = _stub_scraper_recorder(monkeypatch)
 
     assert flipkart.search_flipkart("iphone") == []
+    assert scraper_calls["n"] == 0
 
 
-def test_search_flipkart_uses_scraper_when_credentials_missing(monkeypatch):
+def test_search_flipkart_api_mode_empty_body_never_invokes_scraper(monkeypatch):
+    """api mode + unparseable body -> [] (honest empty), scraper NOT called."""
+    _enable_api(monkeypatch)
+    monkeypatch.setattr(
+        flipkart_api.requests, "get", lambda url, **kwargs: FakeResponse(200, "")
+    )
+    scraper_calls = _stub_scraper_recorder(monkeypatch)
+
+    assert flipkart.search_flipkart("iphone") == []
+    assert scraper_calls["n"] == 0
+
+
+def test_search_flipkart_api_mode_missing_creds_never_invokes_scraper(monkeypatch):
+    """api mode selected but creds absent -> [] quickly, scraper NOT called."""
     monkeypatch.setenv("FLIPKART_DATA_SOURCE", "api")
-    # No credentials set -> API disabled.
+    scraper_calls = _stub_scraper_recorder(monkeypatch)
+
+    assert flipkart.search_flipkart("iphone") == []
+    assert scraper_calls["n"] == 0
+
+
+def test_search_flipkart_uses_scraper_when_scraper_mode(monkeypatch):
+    """FLIPKART_DATA_SOURCE=scraper runs the legacy path and never calls the API."""
+    monkeypatch.setenv("FLIPKART_DATA_SOURCE", "scraper")
+    api_calls = _stub_api_recorder(monkeypatch)
     _stub_scraper(monkeypatch, [{"title": "scraper-result"}])
+
     assert flipkart.search_flipkart("iphone") == [{"title": "scraper-result"}]
+    assert api_calls["n"] == 0
 
 
 def test_search_flipkart_uses_scraper_by_default(monkeypatch):
     # FLIPKART_DATA_SOURCE unset -> default scraper.
+    api_calls = _stub_api_recorder(monkeypatch)
     _stub_scraper(monkeypatch, [{"title": "scraper-result"}])
+
     assert flipkart.search_flipkart("iphone") == [{"title": "scraper-result"}]
+    assert api_calls["n"] == 0
 
 
 def test_search_flipkart_returns_empty_when_scraper_empty(monkeypatch):
+    api_calls = _stub_api_recorder(monkeypatch)
     _stub_scraper(monkeypatch, [])
+
     assert flipkart.search_flipkart("iphone") == []
+    assert api_calls["n"] == 0
 
 
 # --- Product URL / tracking handling ----------------------------------------
