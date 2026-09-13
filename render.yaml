@@ -25,6 +25,21 @@ services:
         value: "INFO"
       - key: METRICS_ENABLED
         value: "true"
+      # Intended production data-source topology (see app/core/config.py):
+      # official APIs where available, browser-free Myntra HTTP, Ajio deferred.
+      # Credentials (Amazon Creators client id/secret + partner tag, Flipkart
+      # affiliate id/token) are set ONLY in the Render dashboard.  When a
+      # marketplace is on "api" but its credentials are missing/expired the
+      # adapter fails safe with honest empty and NEVER launches the browser;
+      # "disabled" means the source is not invoked at all.
+      - key: AMAZON_DATA_SOURCE
+        value: "api"
+      - key: FLIPKART_DATA_SOURCE
+        value: "api"
+      - key: MYNTRA_DATA_SOURCE
+        value: "http"
+      - key: AJIO_DATA_SOURCE
+        value: "disabled"
       # The JSON catalog needs a persistent disk (it is written to ./data).
       # Render's Free plan has NO persistent disk: the file would be lost on
       # every redeploy, so the catalog is disabled there.  The implementation
