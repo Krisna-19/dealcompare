@@ -41,6 +41,18 @@ IMAGE_SELECTOR = "img.s-image"
 # a product price.
 _AMOUNT_RE = re.compile(r"^\d+(?:\.\d+)?$")
 
+# Product links carry the ASIN in /dp/<10-char-code>; it is the marketplace's
+# stable product identity (surfaced as product_id for cross-marketplace matching).
+_ASIN_RE = re.compile(r"/dp/([A-Z0-9]{10})")
+
+
+def asin_from_url(url) -> str:
+    """Extract the ASIN (10-char product code) from an Amazon product URL."""
+    if not url:
+        return ""
+    match = _ASIN_RE.search(str(url))
+    return match.group(1) if match else ""
+
 
 def _first_text(item, selectors):
     """Return the first non-empty inner_text among selectors, else None."""
@@ -167,7 +179,7 @@ def extract_product_details(item):
     }
 
 
-def search_amazon(query: str):
+def _search_amazon_scraper(query: str):
 
     settings = get_settings()
     url = build_search_url(query)
@@ -237,7 +249,8 @@ def search_amazon(query: str):
                         "price_value": details["price_value"],
                         "price_display": details["price_display"],
                         "url": details["product_url"],
-                        "image": details["image"]
+                        "image": details["image"],
+                        "product_id": asin_from_url(details["product_url"]),
                     })
 
                 except Exception as e:
@@ -257,3 +270,37 @@ def search_amazon(query: str):
     except Exception as e:
         logger.error("Amazon scraping error: %s", e)
         return []
+
+
+def _amazon_api_selected() -> bool:
+    """True when AMAZON_DATA_SOURCE=api routes Amazon through Creators API."""
+    return getattr(get_settings(), "amazon_data_source", "scraper").strip().lower() == "api"
+
+
+def _search_amazon_creators(query: str) -> list:
+    """Call the official Creators API adapter (safe to run only when selected)."""
+    from app.scrapers.amazon_creators import search_amazon_creators
+    return search_amazon_creators(query)
+
+
+def search_amazon(query: str):
+    """
+    Search Amazon for products matching *query*.
+
+    Data-source dispatch (AMAZON_DATA_SOURCE, see app/core/config.py):
+      - "api": use the official Amazon Creators API adapter.  While "api" is
+        selected the old Playwright scraper is NEVER invoked; missing/expired
+        credentials or an account not eligible for the Creators API simply
+        yield honest empty [] (fail-safe).
+      - "scraper" (default): the existing Playwright browser path, unchanged.
+
+    Returns:
+        list[dict]: Normalised product dicts conforming to the shared
+        DealCompare contract.  On any failure, returns [] (honest empty).
+    """
+    if _amazon_api_selected():
+        logger.info("Amazon data source: api (Creators API)")
+        return _search_amazon_creators(query)
+
+    logger.info("Amazon data source: scraper (Playwright)")
+    return _search_amazon_scraper(query)

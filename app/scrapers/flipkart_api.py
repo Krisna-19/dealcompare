@@ -4,6 +4,7 @@ import logging
 import requests
 
 from app.core.config import get_settings
+from app.scrapers.contract import normalize_offer
 from app.services.ranking_service import calculate_match_score
 from app.utils.text_utils import generate_product_key
 
@@ -171,16 +172,31 @@ def _normalise_api_product(raw):
     if not product_key:
         return None
 
-    return {
-        "title": title,
-        "product_key": product_key,
-        "platform": "Flipkart",
-        "price_value": float(price_value),
-        "price_display": price_display,
-        "url": url,
-        "image": image,
-        "product_id": product_id,
-    }
+    # --- offer extras for the shared cross-marketplace contract -----------
+    # MRP (maximumRetailPrice) is the original/list price when above the price.
+    mrp = _price_amount(base.get("maximumRetailPrice"))
+    original_price = mrp if mrp > price_value else None
+
+    currency = (base.get("maximumRetailPrice") or {}).get("currency") or "INR"
+    if not isinstance(currency, str) or not currency.strip():
+        currency = "INR"
+
+    return normalize_offer(
+        {
+            "title": title,
+            "product_key": product_key,
+            "platform": "Flipkart",
+            "price_value": float(price_value),
+            "price_display": price_display,
+            "url": url,
+            "image": image,
+            "product_id": product_id,
+            "original_price": original_price,
+            "currency": currency.strip().upper(),
+            "availability": "in_stock",
+        },
+        "api",
+    )
 
 
 # ---------------------------------------------------------------------------

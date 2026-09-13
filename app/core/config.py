@@ -98,13 +98,31 @@ class Settings(BaseSettings):
     myntra_affiliate_tag: str = ""
     ajio_affiliate_tag: str = ""
 
+    # --- Marketplace data-source selection ------------------------------------
+    # Per-marketplace selector controlling which retrieval path the connector
+    # routes to.  The connector registry (app/connectors/*) reads these at
+    # call time: a marketplace whose source is "disabled" is dropped from the
+    # active source list entirely (deferred), never called, and never reported.
+    #
+    #   amazon      "scraper" (default) | "api"          - Creators API adapter
+    #   flipkart    "scraper" (default) | "api"          - Affiliate API (with
+    #               scraper fallback, unchanged legacy behaviour)
+    #   myntra      "http" (default)    | "scraper"      - "http" is the
+    #               browser-free honest-empty path; "scraper" preserves the
+    #               legacy HTTP-primary + Playwright-fallback behaviour
+    #   ajio        "scraper" (default) | "disabled"     - "disabled" defers the
+    #               source (honest empty) with no browser/network attempt
+    amazon_data_source: str = "scraper"
+    flipkart_data_source: str = "scraper"
+    myntra_data_source: str = "http"
+    ajio_data_source: str = "scraper"
+
     # --- Flipkart Affiliate API -----------------------------------------------
     # Optional official Flipkart Affiliate search API (affiliate.flipkart.com).
     # Enabled only when FLIPKART_DATA_SOURCE=api AND both credentials below are
     # non-empty; otherwise the existing Playwright scraper is used unchanged.
-    # Data source selector: "scraper" (default, preserve current behaviour) or
-    # "api" (use the Affiliate API first, falling back to the scraper).
-    flipkart_data_source: str = "scraper"
+    # (The FLIPKART_DATA_SOURCE toggle itself lives in the data-source section
+    # above; it is kept duplicated there for the connector registry.)
     # Affiliate Tracking ID (e.g. "abc-21").  Keep empty in non-API mode.
     flipkart_affiliate_id: str = ""
     # Affiliate API Token issued on affiliate.flipkart.com.  Keep empty in
@@ -119,6 +137,30 @@ class Settings(BaseSettings):
     flipkart_api_result_count: int = 10
     # API request timeout in seconds.
     flipkart_api_timeout_seconds: float = 8.0
+
+    # --- Amazon Creators API --------------------------------------------------
+    # Official Amazon Creators API (the successor to the Product Advertising
+    # API 5, deprecated 2026-05-15): creatorsapi.amazon.  Enabled only when
+    # AMAZON_DATA_SOURCE=api AND the three credentials/partner tag below are
+    # non-empty; otherwise the adapter fails safe with honest empty and never
+    # falls back to the old Playwright scraper while "api" is selected.
+    # Never commit real credentials to source control.
+    amazon_creator_client_id: str = ""
+    amazon_creator_client_secret: str = ""
+    amazon_partner_tag: str = ""
+    # Storefront the Creators API is queried against.  Keep the full host so
+    # the x-marketplace header and detailPageURL base stay aligned.
+    amazon_marketplace: str = "www.amazon.in"
+    amazon_creators_api_base_url: str = "https://creatorsapi.amazon"
+    # OAuth2 LwA token endpoint.  India (IN) is served by the EU regional
+    # endpoint (region 3.2) — overrideable when Amazon moves regions around.
+    amazon_creators_token_url: str = "https://api.amazon.co.uk/auth/o2/token"
+    # Token request scopes-granted: the Creators API default scope.
+    amazon_creators_scope: str = "creatorsapi::default"
+    amazon_creators_timeout_seconds: float = 8.0
+    # Number of items requested per SearchItems call (capped downstream by
+    # max_results_per_platform).
+    amazon_creators_result_count: int = 10
 
     # --- CORS ---------------------------------------------------------------
     # Comma-separated origin allow-list. Defaults keep local Vite dev servers

@@ -1,23 +1,25 @@
 """
 Myntra scraper — real product data from myntra.com search results.
 
-Two retrieval paths, both returning the same shared DealCompare contract:
+Retrieval is decided by MYNTRA_DATA_SOURCE (see app/core/config.py):
 
-1. HTTP (primary): Myntra servers render the full search results into the
-   initial HTML inside a `window.__myx` JSON blob (`searchData.results.
-   products`).  A plain `requests` GET (HTTP/1.1) fetches that and we parse
-   the embedded products.  This avoids the Chromium HTTP/2 handshake that
-   Myntra intermittently resets (`ERR_HTTP2_PROTOCOL_ERROR`), which used to
-   make the browser path return zero results even though the data was served.
+1. "http" (default, Phase C): the browser-free HTTP path.  Myntra renders the
+   full search results into the initial HTML inside a `window.__myx` JSON blob
+   (`searchData.results.products`).  A plain `requests` GET (HTTP/1.1) fetches
+   that and we parse the embedded products.  This avoids the Chromium HTTP/2
+   handshake that Myntra intermittently resets (`ERR_HTTP2_PROTOCOL_ERROR`).
+   No Playwright is invoked by this path and any HTTP failure returns honest
+   empty [] (never a browser fallback).
 
-2. Playwright (fallback): the original browser strategy.  It navigates to the
-   path-based search URL and reads the rendered product cards (`li.product-
-   base`) structurally inside a single page.evaluate call.  Kept as a fallback
-   so that if the HTTP path is unavailable, errors, or returns invalid/empty
-   data we still attempt live extraction.
+2. "scraper" (legacy): HTTP path primary, then the original Playwright browser
+   strategy (`li.product-base` structural cards) as a transparent fallback.
 
 Normalisation, price parsing, deduplication and product-key logic are shared
-by both paths (see normalise_myntra_product / _dedupe_by_product_key).
+by both paths (see normalise_myntra_product / _dedupe_by_product_key), and
+every offer is enriched with the cross-marketplace canonical contract fields
+(see app/scrapers/contract.py): product_id (payload productId, falling back to
+the trailing numeric URL segment), original_price (MRP, when above the selling
+price), currency=INR, captured_at and source_kind.
 
 Failure contract:
   - On any error (markup change, Myntra blocking the request, browser or HTTP
@@ -35,6 +37,7 @@ import requests
 from playwright.sync_api import sync_playwright
 
 from app.core.config import get_settings
+from app.scrapers.contract import normalize_offer
 from app.utils.http_client import get_headers
 from app.utils.text_utils import generate_product_key
 from app.services.ranking_service import calculate_match_score
@@ -163,7 +166,23 @@ def _absolute_url(url):
     return base + ("/" if not u.startswith("/") else "") + u
 
 
-def normalise_myntra_product(raw, query):
+# Myntra product URLs end in /<productId>/buy (e.g. /shirts/brand/123456/buy),
+# so the digits immediately before "/buy" (or at the path tail) are the
+# source's own product identity.  Used only when the payload did not expose a
+# productId; never fabricated from prose.
+_PRODUCT_ID_RE = re.compile(r"(\d+)(?:/buy)?$")
+
+
+def _product_id_from_url(url):
+    """Extract the trailing numeric Myntra product id from *url*, or ''."""
+    if not url:
+        return ""
+    path = str(url).split("?", 1)[0].strip().rstrip("/")
+    match = _PRODUCT_ID_RE.search(path)
+    return match.group(1) if match else ""
+
+
+def normalise_myntra_product(raw, query, source_kind=""):
     """
     Convert one raw Myntra record into the shared DealCompare product dict.
 
@@ -201,7 +220,9 @@ def normalise_myntra_product(raw, query):
     if image and not (image.startswith("http://") or image.startswith("https://")):
         image = _absolute_url(image)
 
-    return {
+    product_id = (raw.get("product_id") or _product_id_from_url(url)).strip()
+
+    offer = {
         "title": title,
         "product_key": product_key,
         "platform": "Myntra",
@@ -209,7 +230,20 @@ def normalise_myntra_product(raw, query):
         "price_display": price_display,
         "url": url,
         "image": image or "",
+        "product_id": product_id or None,
     }
+
+    # MRP (compare price) — only when strictly above the selling price.
+    mrp = raw.get("mrp")
+    try:
+        mrp = float(mrp) if mrp is not None else 0.0
+    except (TypeError, ValueError):
+        mrp = 0.0
+    if mrp > price_value:
+        offer["original_price"] = mrp
+    offer["currency"] = "INR"
+
+    return normalize_offer(offer, source_kind)
 
 
 def _dedupe_by_product_key(products):
@@ -293,19 +327,19 @@ def _extract_html_products(html: str, query: str) -> list:
         brand = (p.get("brand") or "").strip()
         url = (p.get("landingPageUrl") or "").strip()
 
-        # Selling price is Myntra's price to display; falls back to MRP only
-        # when the selling price is unusable (kept real, never invented).
+        # --- selling price with MRP fallback (kept real, never invented) ---
         price = p.get("price")
         try:
             price = float(price) if price is not None else 0.0
         except (TypeError, ValueError):
             price = 0.0
-        if price <= 0:
-            mrp = p.get("mrp")
-            try:
-                price = float(mrp) if mrp is not None else 0.0
-            except (TypeError, ValueError):
-                price = 0.0
+        mrp = p.get("mrp")
+        try:
+            mrp = float(mrp) if mrp is not None else 0.0
+        except (TypeError, ValueError):
+            mrp = 0.0
+        if price <= 0 and mrp > 0:
+            price = mrp
         price_text = f"\u20b9{int(price)}" if price > 0 else ""
 
         image = (p.get("searchImage") or "").strip()
@@ -313,12 +347,20 @@ def _extract_html_products(html: str, query: str) -> list:
         if image.startswith("http://"):
             image = "https://" + image[len("http://"):]
 
+        product_id = p.get("productId")
+        if product_id is not None:
+            product_id = str(product_id).strip()
         raw.append({
             "brand": brand,
             "name": name,
             "price_text": price_text,
             "url": url,
             "image": image,
+            # extra fields for the shared contract: MRP (compare price) and the
+            # source's own product identity.  Kept real — absent values stay
+            # empty so a strict match is never seeded by a guessed value.
+            "mrp": mrp if mrp > 0 else 0.0,
+            "product_id": product_id or "",
         })
 
     return raw
@@ -357,7 +399,7 @@ def _normalise_html_products(raw_products: list, query: str) -> list:
     gathered = []
     for raw in raw_products:
         try:
-            normalised = normalise_myntra_product(raw, query)
+            normalised = normalise_myntra_product(raw, query, source_kind="http")
         except Exception as e:
             logger.warning("Myntra HTTP normalise error: %s", e)
             continue
@@ -439,7 +481,7 @@ def _search_myntra_scraper(query: str) -> list:
 
             for raw in raw_products:
                 try:
-                    normalised = normalise_myntra_product(raw, query)
+                    normalised = normalise_myntra_product(raw, query, source_kind="scrape")
                 except Exception as e:
                     logger.warning("Myntra normalise error: %s", e)
                     continue
@@ -464,21 +506,30 @@ def _search_myntra_scraper(query: str) -> list:
         return []
 
 
+def _myntra_uses_legacy_fallback() -> bool:
+    """True only when MYNTRA_DATA_SOURCE=scraper (legacy HTTP+Playwright)."""
+    return getattr(get_settings(), "myntra_data_source", "http").strip().lower() == "scraper"
+
+
 def search_myntra(query: str):
     """
     Search Myntra for products matching *query*.
 
-    Retrieval dispatch:
-      - Primary: the HTTP path (plain GET + embedded `window.__myx` JSON),
-        which avoids the Chromium HTTP/2 reset that blocks the browser path.
-      - Fallback: the existing Playwright browser scraper, used whenever the
-        HTTP path is unavailable, errors, returns invalid/empty data, or
-        fails to parse.
+    Retrieval dispatch is controlled by MYNTRA_DATA_SOURCE:
+      - "http" (default, Phase C): the browser-free HTTP/__myx path only.
+        No Playwright is ever invoked by the normal Myntra path, and a failed
+        HTTP attempt returns [] — honest empty, never a browser fallback.
+      - "scraper": preserves the legacy behaviour — HTTP path primary, then
+        the existing Playwright browser scraper as a fallback.
 
     Returns:
         list[dict]: Normalised product dicts conforming to the shared
-        DealCompare contract.  On any failure, returns [].
+        DealCompare contract.  On any failure, returns [] (honest empty).
     """
+    if not _myntra_uses_legacy_fallback():
+        return _search_myntra_http(query)
+
+    logger.info("Myntra data source: scraper (HTTP primary + Playwright fallback)")
     http_results = _search_myntra_http(query)
     if http_results:
         logger.info("Myntra used HTTP path: %d results", len(http_results))

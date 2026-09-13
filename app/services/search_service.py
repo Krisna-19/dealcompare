@@ -4,7 +4,7 @@ import time
 from threading import Lock
 
 from app.core.config import get_settings
-from app.connectors.registry import DEFAULT_CONNECTORS
+from app.connectors.registry import get_active_connectors
 from app.scrapers.amazon import search_amazon
 from app.scrapers.flipkart import search_flipkart
 from app.scrapers.myntra import search_myntra
@@ -161,21 +161,29 @@ def clear_coalesce_map():
 # declared in app/connectors/registry.py; callables are resolved dynamically
 # from THIS module's attributes so monkeypatching in tests keeps working.
 #
+# Which sources are ACTIVE (and which retrieval kind each uses) is decided by
+# the live <key>_data_source settings — see app/connectors/base.py.  The
+# registry answers get_active_connectors() from those settings at call time,
+# so enabling/disabling a marketplace never requires editing this module.
+#
 # To add a new e-commerce source:
 #   1. Create app/scrapers/<source>.py with a search_<source>(query) -> list[dict]
-#   2. Append a MarketplaceConnector to app/connectors/registry.py
+#   2. Declare its data source in app/core/config.py
+#   3. Append a MarketplaceConnector to app/connectors/registry.py
 # ---------------------------------------------------------------------------
-
-_CONNECTORS = DEFAULT_CONNECTORS
 
 
 def _resolve_sources():
     """Resolve [(connector, callable), ...] from this module's attributes.
 
     Resolving at call time (rather than caching at import time) ensures that
-    monkeypatching in tests takes effect.
+    monkeypatching in tests takes effect and that a marketplace disabled via
+    its data-source setting is simply not part of the run.
     """
-    return [(connector, connector.resolve()) for connector in _CONNECTORS]
+    return [
+        (connector, connector.resolve())
+        for connector in get_active_connectors()
+    ]
 
 
 def _run_source(source, query):
@@ -248,7 +256,7 @@ def _persist_results(query_key, query, all_products, sources, results):
                 {
                     "key": connector.key,
                     "display_name": connector.display_name,
-                    "kind": connector.kind,
+                    "kind": connector.active_kind,
                     "ok": bool(items),
                 }
                 for (connector, _), items in zip(sources, results)

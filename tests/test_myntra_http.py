@@ -2,11 +2,16 @@
 Deterministic Myntra HTTP retrieval tests.
 
 Cover: embedded `window.__myx` JSON extraction, product normalization, price
-handling, empty/invalid responses, and HTTP failure -> Playwright fallback.
+handling, empty/invalid responses, and the MYNTRA_DATA_SOURCE routing.
+
+Default "http" mode (Phase C) is browser-free: HTTP failure returns honest
+empty [] and Playwright is NEVER invoked.  The legacy "scraper" mode (HTTP
+primary + Playwright fallback) is tested separately under
+MYNTRA_DATA_SOURCE=scraper.
 
 No live network calls.  The HTTP layer is stubbed (monkeypatch on
 app.scrapers.myntra.requests.get) and the Playwright scraper is replaced with
-a fake so the search_myntra() fallback path is exercised without a browser.
+a fake so the legacy fallback path is exercised without a browser.
 """
 
 import json
@@ -146,7 +151,7 @@ def test_price_missing_yields_check_price():
     assert display == "Check price"
 
 
-# --- search_myntra dispatch: HTTP primary + fallback --------------------------
+# --- search_myntra dispatch: default http mode (Phase C) --------------------
 
 class FakeResponse:
     def __init__(self, status_code, text=""):
@@ -184,41 +189,61 @@ def test_search_uses_http_when_data_present(monkeypatch):
     assert results[0]["platform"] == "Myntra"
 
 
-def test_search_falls_back_when_http_non_200(monkeypatch):
+def test_search_http_mode_honest_empty_on_non_200(monkeypatch):
+    """Phase C default: no Playwright fallback; a failed HTTP path is [].
+
+    The scraper being stubbed to return data proves it is never reached.
+    """
+    scraper_calls = {"n": 0}
+
     def fake_get(url, **kwargs):
         return FakeResponse(403, "denied")
 
     monkeypatch.setattr(myntra.requests, "get", fake_get)
-    _stub_scraper(monkeypatch, [{"title": "scraper-fallback"}])
+
+    def fake_scraper(query):
+        scraper_calls["n"] += 1
+        return [{"title": "scraper-fallback"}]
+
+    monkeypatch.setattr(myntra, "_search_myntra_scraper", fake_scraper)
 
     results = myntra.search_myntra("shirt")
-    assert results == [{"title": "scraper-fallback"}]
+    assert results == []  # honest empty, never fabricated, never browser-backed
+    assert scraper_calls["n"] == 0
 
 
-def test_search_falls_back_when_http_raises(monkeypatch):
+def test_search_http_mode_honest_empty_when_http_raises(monkeypatch):
+    scraper_calls = {"n": 0}
+
     def boom(url, **kwargs):
         raise requests.exceptions.ConnectionError("refused")
 
     monkeypatch.setattr(myntra.requests, "get", boom)
-    _stub_scraper(monkeypatch, [{"title": "scraper-fallback"}])
+
+    def fake_scraper(query):
+        scraper_calls["n"] += 1
+        return [{"title": "scraper-fallback"}]
+
+    monkeypatch.setattr(myntra, "_search_myntra_scraper", fake_scraper)
 
     results = myntra.search_myntra("shirt")
-    assert results == [{"title": "scraper-fallback"}]
+    assert results == []
+    assert scraper_calls["n"] == 0
 
 
-def test_search_falls_back_when_http_empty_results(monkeypatch):
-    # 200 but the HTML contains no products -> invalid/empty -> fallback.
+def test_search_http_mode_honest_empty_when_http_empty_results(monkeypatch):
+    # 200 but the HTML contains no products -> invalid/empty -> [].
     def fake_get(url, **kwargs):
         return FakeResponse(200, "<html>no products here</html>")
 
     monkeypatch.setattr(myntra.requests, "get", fake_get)
-    _stub_scraper(monkeypatch, [])
+    _stub_scraper(monkeypatch, [{"title": "scraper-fallback"}])
 
     assert myntra.search_myntra("shirt") == []
 
 
-def test_search_falls_back_when_http_products_unusable(monkeypatch):
-    # 200 with a products list that normalises to nothing -> fallback.
+def test_search_http_mode_honest_empty_when_http_products_unusable(monkeypatch):
+    # 200 with a products list that normalises to nothing -> [].
     empty_products = _wrap_html([
         {"productName": "No Price", "brand": "B", "price": 0, "mrp": 0}
     ])
@@ -229,13 +254,103 @@ def test_search_falls_back_when_http_products_unusable(monkeypatch):
     monkeypatch.setattr(myntra.requests, "get", fake_get)
     _stub_scraper(monkeypatch, [{"title": "scraper-fallback"}])
 
+    assert myntra.search_myntra("shirt") == []
+
+
+def test_search_http_mode_returns_a_list_without_credentials(monkeypatch):
+    # search_myntra does not depend on credentials; ensure it returns a list
+    # (here empty) and never raises.
+    monkeypatch.setattr(
+        myntra.requests, "get", lambda url, **kw: FakeResponse(200, "no data")
+    )
+    _stub_scraper(monkeypatch, [])
+    assert isinstance(myntra.search_myntra("anything"), list)
+
+
+# --- search_myntra dispatch: legacy scramper mode ---------------------------
+
+def test_search_scraper_mode_falls_back_when_http_fails(monkeypatch):
+    """MYNTRA_DATA_SOURCE=scraper preserves the HTTP-primary + Playwright
+    fallback behaviour the connector used to have by default."""
+    monkeypatch.setenv("MYNTRA_DATA_SOURCE", "scraper")
+
+    def fake_get(url, **kwargs):
+        return FakeResponse(403, "denied")
+
+    monkeypatch.setattr(myntra.requests, "get", fake_get)
+    _stub_scraper(monkeypatch, [{"title": "scraper-fallback"}])
+
     results = myntra.search_myntra("shirt")
     assert results == [{"title": "scraper-fallback"}]
 
 
-def test_search_falls_back_when_no_creds_still_works(monkeypatch):
-    # search_myntra does not depend on credentials; it always tries HTTP then
-    # falls back.  Ensure the default path returns a list, never raises.
-    monkeypatch.setattr(myntra.requests, "get", lambda url, **kw: FakeResponse(200, "no data"))
+def test_search_scraper_mode_uses_http_first_when_available(monkeypatch):
+    monkeypatch.setenv("MYNTRA_DATA_SOURCE", "scraper")
+    http_calls = {"n": 0}
+    scraper_calls = {"n": 0}
+
+    def fake_get(url, **kwargs):
+        http_calls["n"] += 1
+        return FakeResponse(200, _load_html_fixture())
+
+    monkeypatch.setattr(myntra.requests, "get", fake_get)
     _stub_scraper(monkeypatch, [])
-    assert isinstance(myntra.search_myntra("anything"), list)
+
+    results = myntra.search_myntra("shirt")
+
+    assert http_calls["n"] == 1
+    assert len(results) == 2
+
+
+# --- product_id + original_price (Phase C / Phase G contract) ---------------
+
+def test_normalise_exposes_source_product_id_from_url():
+    raw = {
+        "brand": "Farah",
+        "name": "Slim Fit Chinos",
+        "price_text": "\u20b91,299",
+        "url": "/mens-chinos/farah/49429950/buy",
+        "image": "",
+    }
+    offer = myntra.normalise_myntra_product(raw, "chinos")
+    assert offer is not None
+    assert offer["product_id"] == "49429950"
+    assert offer["marketplace_product_id"] == "49429950"
+
+
+@pytest.mark.parametrize("url,expected", [
+    ("/mens-chinos/farah/49429950/buy", "49429950"),
+    ("/mens-chinos/farah/49429950", "49429950"),
+    ("/p/123/buy?color=1", "123"),
+    ("https://www.myntra.com/mens-chinos/farah/49429950/buy", "49429950"),
+    ("/no-id-in-path/", ""),
+    ("", ""),
+])
+def test_product_id_from_url(url, expected):
+    assert myntra._product_id_from_url(url) == expected
+
+
+def test_normalise_sets_original_price_from_mrp():
+    raw = {
+        "brand": "Farah",
+        "name": "Slim Fit Chinos",
+        "price_text": "\u20b91,299",
+        "url": "/mens-chinos/farah/49429950/buy",
+        "mrp": 2999.0,
+    }
+    offer = myntra.normalise_myntra_product(raw, "chinos", source_kind="http")
+    assert offer["original_price"] == 2999.0
+    assert offer["currency"] == "INR"
+    assert offer["source_kind"] == "http"
+
+
+def test_normalise_omits_original_price_when_mrp_below_price():
+    raw = {
+        "brand": "Farah",
+        "name": "Slim Fit Chinos",
+        "price_text": "\u20b91,299",
+        "url": "/mens-chinos/farah/49429950/buy",
+        "mrp": 900.0,  # below selling price -> not a real list price
+    }
+    offer = myntra.normalise_myntra_product(raw, "chinos")
+    assert offer["original_price"] is None

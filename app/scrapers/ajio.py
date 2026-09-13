@@ -18,6 +18,10 @@ URL builder, and DOM extractor are real, fully unit-tested code that will
 start returning live offers the moment Ajio becomes reachable from the running
 environment.
 
+When AJIO_DATA_SOURCE=disabled (see app/core/config.py) the source is
+DEFERRED: no browser/network attempt is made at all, [] is returned
+immediately, and the connector reports itself as "deferred".
+
 Extraction strategy (mirrors the Myntra/Flipkart pattern):
   1. Build the path-based search URL  https://www.ajio.com/search/<query>.
   2. Render the page with the shared Playwright strategy and read the product
@@ -243,15 +247,34 @@ def _dedupe_by_product_key(products):
     return list(seen.values())
 
 
+def _ajio_deferred() -> bool:
+    """True when AJIO_DATA_SOURCE=disabled (source deferred, honest empty)."""
+    return (
+        getattr(get_settings(), "ajio_data_source", "scraper").strip().lower()
+        == "disabled"
+    )
+
+
 def search_ajio(query: str):
     """
     Search Ajio for products matching *query*.
 
+    Data-source dispatch (AJIO_DATA_SOURCE, see app/core/config.py):
+      - "disabled": the source is deferred.  No browser/network attempt is
+        made at all and [] is returned immediately (honest empty) — the
+        connector appears as "deferred" in the registry and is never run.
+      - "scraper" (default): attempt the real browser pipeline and, on any
+        failure (including Ajio's anti-bot HTTP 403 block), return [] —
+        honest empty, never fabricated data.
+
     Returns:
         list[dict]: Normalised product dicts conforming to the shared
-        DealCompare contract.  On any failure (including Ajio's anti-bot
-        HTTP 403 block) returns [] — honest empty, never fabricated data.
+        DealCompare contract.  On any failure returns [].
     """
+    if _ajio_deferred():
+        logger.info("Ajio data source: disabled (deferred, no browser attempt)")
+        return []
+
     settings = get_settings()
     url = build_search_url(query)
     results = []
