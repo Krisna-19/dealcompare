@@ -2,7 +2,7 @@
 // ProductCard + SearchHeader + FeedbackState).  The network layer is always
 // mocked — no real marketplace requests are ever made from tests.
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, within, waitFor } from "@testing-library/react";
+import { render, screen, within, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import Home from "../src/pages/Home.jsx";
@@ -52,8 +52,10 @@ function searchOkPayload(cards) {
 async function search(user, query, payload) {
   mockFetchOnce(payload);
   await user.type(screen.getByLabelText("Search products"), query);
-  await user.click(screen.getByRole("button", { name: /^Compare/ }));
-  await waitFor(() => expect(screen.getByRole("button", { name: /^Compare/ })).toBeEnabled());
+  // Exact name "Compare" targets the SEARCH submit button only (the card's
+  // "Compare N offers" trigger has a different accessible name).
+  await user.click(screen.getByRole("button", { name: "Compare" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Compare" })).toBeEnabled());
 }
 
 afterEach(() => {
@@ -242,5 +244,53 @@ describe("Home results experience", () => {
     expect(within(article).getByText("Amazon")).toBeInTheDocument();
     expect(within(article).queryByText(flipkart.price_display)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Amazon" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("keeps single-offer cards simple (no Compare offers action)", async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+
+    await search(user, "iphone 15", searchOkPayload([card([offer("Flipkart", 59900)])]));
+
+    const article = await screen.findByRole("article");
+    expect(within(article).queryByRole("button", { name: /^Compare/ })).not.toBeInTheDocument();
+  });
+
+  it("does not show Compare offers when the card holds only invalid offers", async () => {
+    const user = userEvent.setup();
+    const bogus = { ...offer("Flipkart", 0), price_value: 0, url: "" };
+    render(<Home />);
+
+    await search(user, "iphone 15", searchOkPayload([card([bogus])]));
+
+    const article = await screen.findByRole("article");
+    expect(within(article).getByText(/No valid offers available/)).toBeInTheDocument();
+    expect(within(article).queryByRole("button", { name: /^Compare/ })).not.toBeInTheDocument();
+  });
+
+  it("shows Compare offers only for multi-offer groups and opens the accessible panel", async () => {
+    const user = userEvent.setup();
+    const flipkart = offer("Flipkart", 59900);
+    const amazon = offer("Amazon", 61999);
+    render(<Home />);
+
+    await search(user, "iphone 15", searchOkPayload([card([flipkart, amazon])]));
+
+    const article = await screen.findByRole("article");
+    const trigger = within(article).getByRole("button", { name: /^Compare 2 offers/ });
+    expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(trigger);
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(within(dialog).getAllByRole("link", { name: /View deal on/ }).length).toBe(2);
+    expect(within(dialog).getByText("Best price", { selector: ".best-chip" })).toBeInTheDocument();
+
+    // Escape dismisses the modal.
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
   });
 });

@@ -1,29 +1,14 @@
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   bestOffer,
   formatPrice,
   savingsForOffer,
   availabilityForOffer,
   isValidOffer,
+  validOffers,
 } from "../lib/deals.js";
-
-/* Store identity for the offer rows: a small colored avatar + display name.
-   Unknown/new marketplaces degrade to a neutral tone — never hidden. */
-const STORE_META = {
-  Flipkart: { initials: "FL", color: "#1f6feb", text: "#FFFFFF" },
-  Amazon: { initials: "AZ", color: "#ff9900", text: "#0b0b0b" },
-  Myntra: { initials: "MY", color: "#ff3f6c", text: "#FFFFFF" },
-  Ajio: { initials: "AJ", color: "#111827", text: "#FFFFFF" },
-  Croma: { initials: "CR", color: "#1d4ed8", text: "#FFFFFF" },
-  "Tata CLiQ": { initials: "TC", color: "#0f766e", text: "#FFFFFF" },
-  Meesho: { initials: "MS", color: "#c2410c", text: "#FFFFFF" },
-};
-
-function storeMeta(platform) {
-  const known = STORE_META[platform];
-  if (known) return known;
-  const initials = (platform || "ST").slice(0, 2).toUpperCase();
-  return { initials, color: "#4b5563", text: "#FFFFFF" };
-}
+import { storeMeta } from "../lib/storeMeta.js";
+import ComparePanel from "./ComparePanel";
 
 /* Card-level image from the API: card.image first, else first offer image. */
 function productImage(card, offers) {
@@ -99,9 +84,28 @@ function OfferRow({ offer, isBest }) {
    grouping/variants; this component only renders what the API returned and
    never re-combines offers across products. */
 export default function ProductCard({ card, offers, categoryLabel }) {
+  const [compareOpen, setCompareOpen] = useState(false);
+  const triggerRef = useRef(null);
+  const wasOpen = useRef(false);
+
   const valid = Array.isArray(offers) ? offers.filter(isValidOffer) : [];
   const best = bestOffer(valid);
   const image = productImage(card, valid);
+
+  /* Full product group from the API (not the home store-filtered view):
+     "Compare offers" appears once the GROUP has 2+ valid offers. */
+  const groupOffers = useMemo(() => validOffers(card.offers), [card]);
+  const canCompare = groupOffers.length >= 2;
+
+  const closeCompare = () => setCompareOpen(false);
+
+  /* Restore keyboard focus to the trigger after the modal closes. */
+  useEffect(() => {
+    if (wasOpen.current && !compareOpen && triggerRef.current) {
+      triggerRef.current.focus();
+    }
+    wasOpen.current = compareOpen;
+  }, [compareOpen]);
 
   return (
     <article className="card" aria-label={card.title}>
@@ -154,7 +158,25 @@ export default function ProductCard({ card, offers, categoryLabel }) {
             ))}
           </div>
         )}
+
+        {canCompare && (
+          <div className="card-footer">
+            <button
+              type="button"
+              className="btn btn-secondary compare-trigger"
+              ref={triggerRef}
+              onClick={() => setCompareOpen(true)}
+              aria-expanded={compareOpen}
+              aria-haspopup="dialog"
+              aria-label={`Compare ${groupOffers.length} offers for ${card.title}`}
+            >
+              Compare {groupOffers.length} offers
+            </button>
+          </div>
+        )}
       </div>
+
+      {compareOpen && <ComparePanel card={card} onClose={closeCompare} />}
     </article>
   );
 }

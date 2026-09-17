@@ -7,6 +7,9 @@ import {
   validOffers,
   visibleOffers,
   bestOffer,
+  priceDifference,
+  sortOffers,
+  offerPlatforms,
   mrpForOffer,
   savingsForOffer,
   availabilityForOffer,
@@ -91,6 +94,66 @@ assert.strictEqual(availabilityForOffer(offer()), null, "no availability -> null
 assert.strictEqual(cardHasValidOffer(multiCard), true, "card with valid offers ok");
 assert.strictEqual(cardHasValidOffer({ offers: [offer({ price_value: null })] }), false, "card with invalid offers not ok");
 assert.strictEqual(cardHasValidOffer({ offers: [] }), false, "card with no offers not ok");
+
+// --- bestOffer (documented tie-break: first lowest in array order wins) ----
+const tied = [
+  offer({ platform: "Amazon", price_value: 100 }),
+  offer({ platform: "Flipkart", price_value: 100 }),
+  offer({ platform: "Myntra", price_value: 101 }),
+];
+assert.strictEqual(bestOffer(tied).platform, "Amazon", "tie -> first lowest in array order");
+assert.strictEqual(bestOffer([offer({ price_value: null }), offer({ platform: "Ajio", price_value: 50 })]).platform, "Ajio", "invalid offers skipped before tie-break");
+assert.strictEqual(bestOffer([offer({ price_value: null }), offer({ price_value: "" })]), null, "no valid -> null");
+
+// --- priceDifference ------------------------------------------------------
+const best = offer({ platform: "Flipkart", price_value: 55999 });
+const dearer = offer({ platform: "Amazon", price_value: 57499 });
+assert.strictEqual(priceDifference(best, dearer), 1500, "difference is offer - best");
+assert.strictEqual(priceDifference(dearer, best), -1500, "symmetric difference");
+assert.strictEqual(priceDifference(best, offer({ price_value: 55999 })), 0, "tie -> 0");
+assert.strictEqual(priceDifference(best, offer({ price_value: null })), null, "invalid offer price -> null");
+assert.strictEqual(priceDifference(offer({ price_value: null }), dearer), null, "invalid best price -> null");
+assert.strictEqual(priceDifference(null, dearer), null, "no best -> null");
+
+// --- sortOffers (deterministic; invalid excluded) --------------------------
+const unsorted = [
+  offer({ platform: "Myntra", price_value: 950 }),
+  offer({ platform: "Amazon", price_value: 1200 }),
+  offer({ platform: "Flipkart", price_value: 899 }),
+  offer({ platform: "Ajio", price_value: 0 }),
+  offer({ platform: "Croma", price_value: "" }),
+];
+assert.deepStrictEqual(sortOffers(unsorted, "best-first").map((o) => o.platform), ["Flipkart", "Myntra", "Amazon"], "best-first = ascending, invalid excluded");
+assert.deepStrictEqual(sortOffers(unsorted, "price-asc").map((o) => o.platform), ["Flipkart", "Myntra", "Amazon"], "price-asc ascending");
+assert.deepStrictEqual(sortOffers(unsorted, "price-desc").map((o) => o.platform), ["Amazon", "Myntra", "Flipkart"], "price-desc descending");
+
+// Tie at equal price -> deterministic by platform name, then original order.
+const tieSort = [
+  offer({ platform: "Amazon", price_value: 500 }),
+  offer({ platform: "Flipkart", price_value: 500 }),
+  offer({ platform: "Ajio", price_value: 500 }),
+];
+assert.deepStrictEqual(
+  sortOffers(tieSort, "price-asc").map((o) => o.platform),
+  ["Ajio", "Amazon", "Flipkart"],
+  "equal prices -> platform alphabetical (deterministic)"
+);
+assert.deepStrictEqual(
+  sortOffers([offer({ platform: "Ajio", price_value: 1 }), offer({ platform: "Ajio", price_value: 1 })], "price-asc").map((o) => o.platform),
+  ["Ajio", "Ajio"],
+  "equal price+platform -> original order preserved (stable)"
+);
+
+// --- offerPlatforms (real marketplaces only) ------------------------------
+const mixed = [
+  offer({ platform: "Amazon", price_value: 0 }),
+  offer({ platform: "Flipkart", price_value: 899 }),
+  offer({ platform: "Flipkart", price_value: 900 }),
+  offer({ platform: "Myntra", price_value: 950 }),
+  offer({ platform: "Croma", price_value: "" }),
+];
+assert.deepStrictEqual(offerPlatforms(mixed), ["Flipkart", "Myntra"], "only marketplaces with valid offers, first-appearance order");
+assert.deepStrictEqual(offerPlatforms([]), [], "no offers -> empty");
 
 // --- formatPrice ----------------------------------------------------------
 assert.strictEqual(formatPrice(59900), "\u20b959,900", "formats INR without decimals");

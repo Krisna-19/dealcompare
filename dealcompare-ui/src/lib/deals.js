@@ -39,7 +39,14 @@ export function visibleOffers(card, store) {
   return validOffers(cardOffers(card, store));
 }
 
-/* The lowest-priced valid offer of a list (null when none are valid). */
+/* The lowest-priced valid offer of a list (null when none are valid).
+
+   Tie-break rule (documented + tested): when two or more offers share the
+   SAME lowest price, the FIRST offer in array order wins — the iteration only
+   replaces `best` on a strict `<`. This is stable and deterministic: it never
+   depends on prices alone, so the single "Best price" marker is always unique
+   for a given offer list.
+*/
 export function bestOffer(offers) {
   let best = null;
   for (const offer of offers) {
@@ -49,6 +56,56 @@ export function bestOffer(offers) {
     }
   }
   return best;
+}
+
+/* Price difference between an offer and the best (lowest) valid offer, in
+   rupees.  Returns a number ONLY when both prices are valid; ties yield 0;
+   a missing/invalid price on either side yields null (never guessed). */
+export function priceDifference(best, offer) {
+  const bestPrice = best ? toPrice(best.price_value) : null;
+  const offerPrice = offer ? toPrice(offer.price_value) : null;
+  if (bestPrice == null || offerPrice == null) return null;
+  return offerPrice - bestPrice;
+}
+
+export const COMPARE_SORTS = [
+  { value: "best-first", label: "Best price first" },
+  { value: "price-asc", label: "Price: Low to High" },
+  { value: "price-desc", label: "Price: High to Low" },
+];
+
+/* Deterministic offer sort for the comparison panel.  Invalid offers are
+   excluded (they never appear); the rest are ordered by (price, platform,
+   original index).  Ties resolve deterministically — lower price first, then
+   platform name alphabetically, then the offer's original array position. */
+export function sortOffers(offers, mode = "best-first") {
+  const valid = validOffers(offers);
+  const indexed = valid.map((offer, i) => ({ offer, i }));
+  const priceOf = (o) => toPrice(o.price_value);
+  indexed.sort((a, b) => {
+    const pa = priceOf(a.offer);
+    const pb = priceOf(b.offer);
+    if (pa !== pb) return mode === "price-desc" ? pb - pa : pa - pb;
+    const byPlatform = String(a.offer.platform || "").localeCompare(
+      String(b.offer.platform || "")
+    );
+    if (byPlatform !== 0) return byPlatform;
+    return a.i - b.i;
+  });
+  return indexed.map((x) => x.offer);
+}
+
+/* Distinct marketplaces present across the VALID offers of a group, in order
+   of first appearance.  Marketplaces with no offers never appear here, so the
+   comparison filter can only offer marketplaces that actually have them. */
+export function offerPlatforms(offers) {
+  const platforms = [];
+  for (const offer of validOffers(offers)) {
+    if (offer.platform && !platforms.includes(offer.platform)) {
+      platforms.push(offer.platform);
+    }
+  }
+  return platforms;
 }
 
 /* Optional original/full price (mrp) supplied by the backend for an offer.
