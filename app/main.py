@@ -22,7 +22,7 @@ from app.services.ranking_service import filter_irrelevant_products
 from app.aggregator.aggregator import aggregate_products
 from app.services.affiliate_service import enrich_results
 from app.utils.category import detect_category
-from app.models.product_model import SearchResponse
+from app.models.product_model import SearchResponse, PriceHistoryResponse, PriceHistoryOffer, PricePoint
 
 logging.basicConfig(
     level=logging.INFO,
@@ -308,6 +308,66 @@ async def _search_impl(query: str):
         "category": category,
         "results": cards,
     }
+
+
+@app.get("/products/{product_key}/price-history", response_model=PriceHistoryResponse)
+def price_history(product_key: str):
+    """Read-only price history for the persisted offers of one product listing.
+
+    Serve ONLY the real PriceSnapshot rows that the catalog accumulated at
+    scrape time — chronological, grouped per marketplace offer (never across
+    stores/variants).  This endpoint never scrapes a marketplace, never spawns
+    Playwright and never touches the Amazon/Myntra/Flipkart/AJIO connectors:
+    when the catalog is disabled, empty, or its lookup fails, it responds with
+    a clean empty result instead of an error or fabricated data.  The /search
+    contract is untouched.
+    """
+    key = (product_key or "").strip()
+
+    if not get_settings().catalog_enabled:
+        metrics.inc(
+            "dc_price_history_requests_total",
+            "Price-history requests by outcome",
+            {"outcome": "disabled"},
+        )
+        return PriceHistoryResponse(product_key=key, catalog_enabled=False)
+
+    try:
+        from app.storage.store import get_store
+        series = get_store().price_history_for_product_key(key)
+    except Exception as e:
+        logger.warning("Price history lookup failed for '%s': %r", key, e)
+        series = []
+
+    offers = [
+        PriceHistoryOffer(
+            product_key=row["product_key"],
+            platform=row["platform"],
+            title=row["title"],
+            url=row["url"],
+            image=row["image"],
+            current_price=row["current_price"],
+            observations=[
+                PricePoint(
+                    price_value=point["price_value"],
+                    observed_at=point["observed_at"],
+                )
+                for point in row["observations"]
+            ],
+        )
+        for row in series
+    ]
+
+    metrics.inc(
+        "dc_price_history_requests_total",
+        "Price-history requests by outcome",
+        {"outcome": "ok" if offers else "empty"},
+    )
+    return PriceHistoryResponse(
+        product_key=key,
+        catalog_enabled=True,
+        offers=offers,
+    )
 
 
 @app.exception_handler(Exception)

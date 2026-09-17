@@ -62,3 +62,37 @@ class SearchResponse(BaseModel):
     message: str
     category: str
     results: list[ProductCard] = Field(default_factory=list)
+
+
+class PricePoint(BaseModel):
+    """One persisted price observation for a single offer (never derived)."""
+
+    price_value: float
+    observed_at: float                         # unix epoch seconds
+
+
+class PriceHistoryOffer(BaseModel):
+    """Real price history for EXACTLY ONE persisted marketplace listing.
+
+    Each offer row in the catalog is one marketplace listing (one store, one
+    SKU/variant).  A response may contain several of these (e.g. the Amazon
+    and Flipkart listings of one product), but the snapshots of one offer are
+    never merged into another's — cross-store / variant mixing is impossible
+    by construction.
+    """
+
+    product_key: str
+    platform: str                              # marketplace display name
+    title: str
+    url: str
+    image: str = ""
+    current_price: Optional[float] = None      # latest persisted price, if any
+    observations: list[PricePoint] = Field(default_factory=list)  # chronological
+
+
+class PriceHistoryResponse(BaseModel):
+    """The complete GET /products/{product_key}/price-history envelope."""
+
+    product_key: str
+    catalog_enabled: bool = True
+    offers: list[PriceHistoryOffer] = Field(default_factory=list)

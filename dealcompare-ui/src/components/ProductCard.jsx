@@ -9,6 +9,7 @@ import {
 } from "../lib/deals.js";
 import { storeMeta } from "../lib/storeMeta.js";
 import ComparePanel from "./ComparePanel";
+import PriceHistoryPanel from "./PriceHistoryPanel";
 
 /* Card-level image from the API: card.image first, else first offer image. */
 function productImage(card, offers) {
@@ -88,6 +89,10 @@ export default function ProductCard({ card, offers, categoryLabel }) {
   const triggerRef = useRef(null);
   const wasOpen = useRef(false);
 
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const historyTriggerRef = useRef(null);
+  const historyWasOpen = useRef(false);
+
   const valid = Array.isArray(offers) ? offers.filter(isValidOffer) : [];
   const best = bestOffer(valid);
   const image = productImage(card, valid);
@@ -96,16 +101,27 @@ export default function ProductCard({ card, offers, categoryLabel }) {
      "Compare offers" appears once the GROUP has 2+ valid offers. */
   const groupOffers = useMemo(() => validOffers(card.offers), [card]);
   const canCompare = groupOffers.length >= 2;
+  /* "Price history" is meaningful for any group that has a real offer. */
+  const canHistory = groupOffers.length >= 1;
+  const showFooter = canCompare || canHistory;
 
   const closeCompare = () => setCompareOpen(false);
+  const closeHistory = () => setHistoryOpen(false);
 
-  /* Restore keyboard focus to the trigger after the modal closes. */
+  /* Restore keyboard focus to the trigger after each modal closes. */
   useEffect(() => {
     if (wasOpen.current && !compareOpen && triggerRef.current) {
       triggerRef.current.focus();
     }
     wasOpen.current = compareOpen;
   }, [compareOpen]);
+
+  useEffect(() => {
+    if (historyWasOpen.current && !historyOpen && historyTriggerRef.current) {
+      historyTriggerRef.current.focus();
+    }
+    historyWasOpen.current = historyOpen;
+  }, [historyOpen]);
 
   return (
     <article className="card" aria-label={card.title}>
@@ -159,24 +175,40 @@ export default function ProductCard({ card, offers, categoryLabel }) {
           </div>
         )}
 
-        {canCompare && (
+        {showFooter && (
           <div className="card-footer">
-            <button
-              type="button"
-              className="btn btn-secondary compare-trigger"
-              ref={triggerRef}
-              onClick={() => setCompareOpen(true)}
-              aria-expanded={compareOpen}
-              aria-haspopup="dialog"
-              aria-label={`Compare ${groupOffers.length} offers for ${card.title}`}
-            >
-              Compare {groupOffers.length} offers
-            </button>
+            {canCompare && (
+              <button
+                type="button"
+                className="btn btn-secondary compare-trigger"
+                ref={triggerRef}
+                onClick={() => setCompareOpen(true)}
+                aria-expanded={compareOpen}
+                aria-haspopup="dialog"
+                aria-label={`Compare ${groupOffers.length} offers for ${card.title}`}
+              >
+                Compare {groupOffers.length} offers
+              </button>
+            )}
+            {canHistory && (
+              <button
+                type="button"
+                className="btn btn-secondary history-trigger"
+                ref={historyTriggerRef}
+                onClick={() => setHistoryOpen(true)}
+                aria-expanded={historyOpen}
+                aria-haspopup="dialog"
+                aria-label={`Price history for ${card.title}`}
+              >
+                Price history
+              </button>
+            )}
           </div>
         )}
       </div>
 
       {compareOpen && <ComparePanel card={card} onClose={closeCompare} />}
+      {historyOpen && <PriceHistoryPanel card={card} onClose={closeHistory} />}
     </article>
   );
 }

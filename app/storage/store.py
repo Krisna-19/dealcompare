@@ -268,6 +268,42 @@ class JsonCatalogStore:
             rows = self._doc["snapshots"].get(offer_id, [])
             return copy.deepcopy(rows)
 
+    def price_history_for_product_key(self, product_key: str):
+        """Real snapshot history for every stored offer row of *product_key*.
+
+        Read-only and strictly identity-preserving: the *product_key* of a
+        persisted MarketplaceOffer row is matched exactly, and every returned
+        series belongs to exactly ONE offer row (one marketplace listing, one
+        SKU/variant).  Series for different stores / models / variants are
+        kept apart and the snapshots of different offers are NEVER merged.
+        Observations are returned chronological (by observed_at).
+
+        This never scrapes, never triggers connectors/Playwright and never
+        fabricates a point: only the persisted PriceSnapshot rows are returned.
+        """
+        key = (product_key or "").strip()
+        with self._lock:
+            doc = self._doc
+            series = []
+            for oid, offer in doc["offers"].items():
+                if (offer.get("product_key") or "").strip() != key:
+                    continue
+                observations = sorted(
+                    copy.deepcopy(doc["snapshots"].get(oid, [])),
+                    key=lambda row: row.get("observed_at") or 0,
+                )
+                series.append({
+                    "offer_id": oid,
+                    "product_key": key,
+                    "platform": offer.get("marketplace") or "",
+                    "title": offer.get("title") or "",
+                    "url": offer.get("url") or "",
+                    "image": offer.get("image") or "",
+                    "current_price": offer.get("price_value"),
+                    "observations": observations,
+                })
+            return series
+
     # -- marketplace health ---------------------------------------------------
 
     def sources(self) -> dict:

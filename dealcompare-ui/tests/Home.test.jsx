@@ -294,3 +294,96 @@ describe("Home results experience", () => {
     expect(trigger).toHaveAttribute("aria-expanded", "false");
   });
 });
+
+function historyPayload() {
+  return {
+    product_key: "app-Flipkart",
+    catalog_enabled: true,
+    offers: [
+      {
+        product_key: "app-Flipkart",
+        platform: "Flipkart",
+        title: "Apple iPhone 15 (Black, 128 GB)",
+        url: "https://example.com/flipkart/59900",
+        image: "",
+        current_price: 59900,
+        observations: [
+          { price_value: 62000, observed_at: 1600000000 },
+          { price_value: 59900, observed_at: 1605000000 },
+        ],
+      },
+    ],
+  };
+}
+
+/* A fetch stub that routes /search vs /price-history by URL. */
+function routingFetch(searchPayload, historyPayloadFn) {
+  const fn = vi.fn((url) =>
+    String(url).includes("/search?")
+      ? Promise.resolve(okResponse(searchPayload))
+      : Promise.resolve(okResponse(historyPayloadFn()))
+  );
+  vi.stubGlobal("fetch", fn);
+  return fn;
+}
+
+describe("Price history (Home integration)", () => {
+  it("opens the price-history modal from a single-offer card", async () => {
+    const user = userEvent.setup();
+    const flipkart = offer("Flipkart", 59900);
+    routingFetch(searchOkPayload([card([flipkart])]), historyPayload);
+    render(<Home />);
+
+    await user.type(screen.getByLabelText("Search products"), "iphone 15");
+    await user.click(screen.getByRole("button", { name: "Compare" }));
+    const article = await screen.findByRole("article");
+
+    const trigger = within(article).getByRole("button", { name: /^Price history/ });
+    expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(trigger);
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+    expect(
+      await within(dialog).findByRole("img", { name: /Price trend for Apple iPhone 15/ })
+    ).toBeInTheDocument();
+  });
+
+  it("closes the history modal on Escape and restores focus to its trigger", async () => {
+    const user = userEvent.setup();
+    const flipkart = offer("Flipkart", 59900);
+    routingFetch(searchOkPayload([card([flipkart])]), historyPayload);
+    render(<Home />);
+
+    await user.type(screen.getByLabelText("Search products"), "iphone 15");
+    await user.click(screen.getByRole("button", { name: "Compare" }));
+    const article = await screen.findByRole("article");
+
+    const trigger = within(article).getByRole("button", { name: /^Price history/ });
+    await user.click(trigger);
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("button", { name: "Close price history" })).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(trigger).toHaveFocus();
+  });
+
+  it("shows no Price history action when the card holds only invalid offers", async () => {
+    const user = userEvent.setup();
+    const bogus = { ...offer("Flipkart", 0), price_value: 0, url: "" };
+    render(<Home />);
+
+    await search(user, "iphone 15", searchOkPayload([card([bogus])]));
+
+    const article = await screen.findByRole("article");
+    expect(within(article).getByText(/No valid offers available/)).toBeInTheDocument();
+    expect(within(article).queryByRole("button", { name: /^Price history/ })).not.toBeInTheDocument();
+    expect(within(article).queryByRole("button", { name: /^Compare/ })).not.toBeInTheDocument();
+  });
+});

@@ -8,7 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "node tests/filterSort.test.js && node tests/deals.test.js",
+    "test": "node tests/filterSort.test.js && node tests/deals.test.js && node tests/priceHistory.test.js",
     "test:ui": "vitest run",
     "test:all": "npm run test && npm run test:ui"
   },
