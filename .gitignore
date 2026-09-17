@@ -17,3 +17,6 @@ __pycache__/
 # Tooling
 .ruff_cache/
 .mypy_cache/
+
+# Node (frontend)
+node_modules/
