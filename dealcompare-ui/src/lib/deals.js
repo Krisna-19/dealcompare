@@ -108,6 +108,53 @@ export function offerPlatforms(offers) {
   return platforms;
 }
 
+/* Distinct marketplaces that hold at least one VALID offer across every card
+   in a results set, in order of first appearance.  This drives the Home store
+   filter as well as the "Available on N marketplaces" summary: it never
+   invents a marketplace, and a marketplace whose offers are all invalid is
+   never shown as available. */
+export function availableMarketplaces(cards) {
+  const platforms = [];
+  for (const card of Array.isArray(cards) ? cards : []) {
+    if (!Array.isArray(card?.offers)) continue;
+    for (const platform of offerPlatforms(card.offers)) {
+      if (!platforms.includes(platform)) platforms.push(platform);
+    }
+  }
+  return platforms;
+}
+
+/* Normalised, display-ready entries derived from the backend's additive
+   /search `marketplaces` summary.  Only reflects what the backend actually
+   reported about each source that ran (offer_count, ok); it can never invent
+   availability.  Returns an empty array when no summary was supplied. */
+export function marketplaceStatusSummary(marketplaces) {
+  if (!Array.isArray(marketplaces)) return [];
+  const entries = [];
+  for (const m of marketplaces) {
+    if (!m || typeof m !== "object") continue;
+    entries.push({
+      key: m.key,
+      display_name: m.display_name || m.key || "Marketplace",
+      ok: m.ok === true,
+      offer_count:
+        Number.isFinite(m.offer_count) && m.offer_count > 0 ? m.offer_count : 0,
+    });
+  }
+  return entries;
+}
+
+/* Human-facing one-line status per summary entry.  Only produced from real
+   summary data, so a marketplace reported as ok with offers can be described
+   by its offer count and a silent one can be described as having none. */
+export function marketplaceStatusLines(marketplaces) {
+  return marketplaceStatusSummary(marketplaces).map((s) =>
+    s.ok
+      ? `${s.display_name}: ${s.offer_count} offer${s.offer_count === 1 ? "" : "s"}`
+      : `${s.display_name}: no offers right now`
+  );
+}
+
 /* Optional original/full price (mrp) supplied by the backend for an offer.
 
    Returns a numeric MRP ONLY when the backend provides one that is strictly

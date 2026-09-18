@@ -26,7 +26,7 @@ def test_search_all_returns_empty_when_every_platform_is_empty(monkeypatch):
     assert asyncio.run(search_service.search_all("iphone 15")) == []
 
 
-def test_search_forwards_query_verbatim_to_every_scraper(monkeypatch):
+def test_search_forwards_query_verbatim_to_every_active_source(monkeypatch):
     received = []
 
     def recorder(name):
@@ -42,29 +42,30 @@ def test_search_forwards_query_verbatim_to_every_scraper(monkeypatch):
 
     asyncio.run(search_service.search_all("  samsung galaxy s24  "))
 
-    # Every scraper must receive the exact same query string.
+    # Every ACTIVE source must receive the exact same query string.  Ajio is
+    # disabled by default (AJIO_DATA_SOURCE=disabled), so it must NOT be
+    # resolved or called even though its callable is monkeypatched.
     assert sorted(received) == [
-        ("ajio", "  samsung galaxy s24  "),
         ("amazon", "  samsung galaxy s24  "),
         ("flipkart", "  samsung galaxy s24  "),
         ("myntra", "  samsung galaxy s24  "),
     ]
+    assert all(name != "ajio" for name, _ in received)
 
 
 def test_search_concatenates_platform_results_in_order(monkeypatch, make_product):
     amazon_hits = [make_product(platform="Amazon", title="A1"), make_product(platform="Amazon", title="A2")]
     flipkart_hits = [make_product(platform="Flipkart", title="F1")]
     myntra_hits = [make_product(platform="Myntra", title="M1")]
-    ajio_hits = [make_product(platform="Ajio", title="J1")]
 
     monkeypatch.setattr(search_service, "search_amazon", lambda q: amazon_hits)
     monkeypatch.setattr(search_service, "search_flipkart", lambda q: flipkart_hits)
     monkeypatch.setattr(search_service, "search_myntra", lambda q: myntra_hits)
-    monkeypatch.setattr(search_service, "search_ajio", lambda q: ajio_hits)
+    monkeypatch.setattr(search_service, "search_ajio", lambda q: myntra_hits)
 
     products = asyncio.run(search_service.search_all("q"))
 
-    assert [p["title"] for p in products] == ["A1", "A2", "F1", "M1", "J1"]
+    assert [p["title"] for p in products] == ["A1", "A2", "F1", "M1"]
 
 
 def test_search_one_source_failing_doesnt_kill_others(monkeypatch, make_product):

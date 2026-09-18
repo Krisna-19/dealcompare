@@ -217,6 +217,20 @@ body {
   color: var(--text);
 }
 
+.results-meta {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: #64748b;
+  text-align: center;
+}
+
+.marketplace-status {
+  margin: 0 0 22px;
+  font-size: 12px;
+  color: #94a3b8;
+  text-align: center;
+}
+
 /* =========================================================================
    FILTERS + SORT
    ========================================================================= */

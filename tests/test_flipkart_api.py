@@ -70,11 +70,12 @@ def test_build_api_search_url_custom_result_count():
 
 # --- Credential / data-source gating ---------------------------------------
 
-def test_api_disabled_without_data_source(monkeypatch):
+def test_api_enabled_by_default_with_credentials(monkeypatch):
+    # FLIPKART_DATA_SOURCE unset -> default is "api".  With both credentials
+    # present the Affiliate API is enabled without any explicit sourcing env.
     monkeypatch.setenv("FLIPKART_AFFILIATE_ID", "testaffiliate")
     monkeypatch.setenv("FLIPKART_AFFILIATE_TOKEN", "testtoken")
-    # FLIPKART_DATA_SOURCE unset -> default scraper -> API disabled.
-    assert flipkart_api.api_enabled() is False
+    assert flipkart_api.api_enabled() is True
 
 
 def test_api_disabled_with_missing_id(monkeypatch):
@@ -521,21 +522,25 @@ def test_search_flipkart_uses_scraper_when_scraper_mode(monkeypatch):
     assert api_calls["n"] == 0
 
 
-def test_search_flipkart_uses_scraper_by_default(monkeypatch):
-    # FLIPKART_DATA_SOURCE unset -> default scraper.
+def test_search_flipkart_uses_api_by_default(monkeypatch):
+    # FLIPKART_DATA_SOURCE unset -> default "api".  Missing credentials must
+    # yield honest empty and the Playwright scraper must NEVER be reached.
+    api_calls = _stub_api_recorder(monkeypatch)
+    scraper_calls = _stub_scraper_recorder(monkeypatch)
+
+    assert flipkart.search_flipkart("iphone") == []
+    assert scraper_calls["n"] == 0  # no scraper fallback by default
+    assert api_calls["n"] == 1  # api adapter consulted, but short-circuits to []
+
+
+def test_search_flipkart_default_api_ignores_scraper_results(monkeypatch):
+    # Even when a stubbed scraper COULD return results, the api-by-default
+    # path never invokes it (missing creds -> honest empty).
     api_calls = _stub_api_recorder(monkeypatch)
     _stub_scraper(monkeypatch, [{"title": "scraper-result"}])
 
-    assert flipkart.search_flipkart("iphone") == [{"title": "scraper-result"}]
-    assert api_calls["n"] == 0
-
-
-def test_search_flipkart_returns_empty_when_scraper_empty(monkeypatch):
-    api_calls = _stub_api_recorder(monkeypatch)
-    _stub_scraper(monkeypatch, [])
-
     assert flipkart.search_flipkart("iphone") == []
-    assert api_calls["n"] == 0
+    assert api_calls["n"] == 1  # adapter short-circuits to honest empty
 
 
 # --- Product URL / tracking handling ----------------------------------------

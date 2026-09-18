@@ -15,6 +15,9 @@ import {
   availabilityForOffer,
   cardHasValidOffer,
   formatPrice,
+  availableMarketplaces,
+  marketplaceStatusSummary,
+  marketplaceStatusLines,
 } from "../src/lib/deals.js";
 
 function offer(overrides = {}) {
@@ -154,6 +157,56 @@ const mixed = [
 ];
 assert.deepStrictEqual(offerPlatforms(mixed), ["Flipkart", "Myntra"], "only marketplaces with valid offers, first-appearance order");
 assert.deepStrictEqual(offerPlatforms([]), [], "no offers -> empty");
+
+// --- availableMarketplaces (data-driven store filters) ---------------------
+const groupedCards = [
+  {
+    title: "Wallet",
+    offers: [
+      offer({ platform: "Flipkart", price_value: 279 }),
+      offer({ platform: "Amazon", price_value: 289 }),
+      offer({ platform: "Myntra", price_value: 0 }), // invalid -> NOT a marketplace
+    ],
+  },
+  {
+    title: "Jacket",
+    offers: [offer({ platform: "Amazon", price_value: 19999 })],
+  },
+];
+assert.deepStrictEqual(
+  availableMarketplaces(groupedCards),
+  ["Flipkart", "Amazon"],
+  "only marketplaces with at least one valid offer, first-appearance order"
+);
+assert.deepStrictEqual(availableMarketplaces([]), [], "no cards -> no marketplaces");
+assert.deepStrictEqual(
+  availableMarketplaces([{ title: "x", offers: [offer({ price_value: 0 })] }]),
+  [],
+  "marketplace whose offers are all invalid is never shown"
+);
+
+// --- marketplaceStatusSummary (backend summary, never invented) ------------
+const rawSummary = [
+  { key: "amazon", display_name: "Amazon", kind: "api", offer_count: 2, ok: true },
+  { key: "flipkart", display_name: "Flipkart", kind: "api", offer_count: 0, ok: false },
+  { key: "myntra", display_name: "Myntra", kind: "http", offer_count: 1, ok: true },
+];
+assert.deepStrictEqual(
+  marketplaceStatusSummary(rawSummary),
+  [
+    { key: "amazon", display_name: "Amazon", ok: true, offer_count: 2 },
+    { key: "flipkart", display_name: "Flipkart", ok: false, offer_count: 0 },
+    { key: "myntra", display_name: "Myntra", ok: true, offer_count: 1 },
+  ],
+  "summary normalised to display-ready entries"
+);
+assert.deepStrictEqual(marketplaceStatusSummary(undefined), [], "no summary -> empty");
+assert.deepStrictEqual(marketplaceStatusSummary([]), [], "empty summary -> empty");
+assert.deepStrictEqual(
+  marketplaceStatusLines(rawSummary),
+  ["Amazon: 2 offers", "Flipkart: no offers right now", "Myntra: 1 offer"],
+  "readable one-line statuses per source"
+);
 
 // --- formatPrice ----------------------------------------------------------
 assert.strictEqual(formatPrice(59900), "\u20b959,900", "formats INR without decimals");

@@ -24,7 +24,7 @@ def _product(platform, title, price_value):
 
 def _fake_search(products):
     async def _search(q):
-        return products
+        return {"products": products, "marketplaces": []}
 
     return _search
 
@@ -40,13 +40,13 @@ def sample_products():
 # --- Success ---------------------------------------------------------------
 
 def test_success_returns_200_with_exact_contract(sample_products, monkeypatch):
-    monkeypatch.setattr("app.main.search_all", _fake_search(sample_products))
+    monkeypatch.setattr("app.main.search_with_marketplaces", _fake_search(sample_products))
 
     res = client.get("/search", params={"query": "iphone 15"})
 
     assert res.status_code == 200
     body = res.json()
-    assert set(body.keys()) == {"message", "category", "results"}
+    assert set(body.keys()) == {"message", "category", "results", "marketplaces"}
     assert body["message"] == "Products compared successfully"
     assert isinstance(body["results"], list)
     assert len(body["results"]) == 1  # two near-duplicates -> one group
@@ -57,7 +57,7 @@ def test_success_returns_200_with_exact_contract(sample_products, monkeypatch):
 # --- Honest empty ----------------------------------------------------------
 
 def test_empty_results_are_honest_200_not_error(monkeypatch):
-    monkeypatch.setattr("app.main.search_all", _fake_search([]))
+    monkeypatch.setattr("app.main.search_with_marketplaces", _fake_search([]))
 
     res = client.get("/search", params={"query": "unobtainium widget xyz"})
 
@@ -66,6 +66,7 @@ def test_empty_results_are_honest_200_not_error(monkeypatch):
         "message": "No products found",
         "category": "General",
         "results": [],
+        "marketplaces": [],
     }
 
 
@@ -107,7 +108,7 @@ def test_whitespace_only_query_is_422_invalid_query():
 
 
 def test_query_over_200_chars_is_422_invalid_query(monkeypatch):
-    monkeypatch.setattr("app.main.search_all", _fake_search([]))
+    monkeypatch.setattr("app.main.search_with_marketplaces", _fake_search([]))
 
     res = client.get("/search", params={"query": "a" * 201})
 
@@ -118,7 +119,7 @@ def test_query_over_200_chars_is_422_invalid_query(monkeypatch):
 
 
 def test_query_at_max_length_200_is_accepted(monkeypatch):
-    monkeypatch.setattr("app.main.search_all", _fake_search([]))
+    monkeypatch.setattr("app.main.search_with_marketplaces", _fake_search([]))
 
     res = client.get("/search", params={"query": "a" * 200})
 
@@ -133,7 +134,7 @@ def test_upstream_failure_is_502_and_leaks_nothing(monkeypatch):
             "playwright chromium crashed: C:\\Users\\secret\\browser\\path"
         )
 
-    monkeypatch.setattr("app.main.search_all", boom)
+    monkeypatch.setattr("app.main.search_with_marketplaces", boom)
 
     res = client.get("/search", params={"query": "iphone 15"})
 
@@ -152,7 +153,7 @@ def test_upstream_failure_never_returns_fake_success(monkeypatch):
     def boom(q):
         raise RuntimeError("network down")
 
-    monkeypatch.setattr("app.main.search_all", boom)
+    monkeypatch.setattr("app.main.search_with_marketplaces", boom)
 
     res = client.get("/search", params={"query": "iphone 15"})
 
@@ -168,7 +169,7 @@ def test_upstream_failure_never_returns_fake_success(monkeypatch):
 # --- Unexpected internal exceptions ---------------------------------------
 
 def test_aggregation_crash_is_500_internal_error_without_leak(monkeypatch, sample_products):
-    monkeypatch.setattr("app.main.search_all", _fake_search(sample_products))
+    monkeypatch.setattr("app.main.search_with_marketplaces", _fake_search(sample_products))
 
     def broken_aggregate(products):
         raise ValueError("internal db credentials leaked-here")

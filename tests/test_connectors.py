@@ -118,7 +118,15 @@ def test_get_active_connectors_drops_disabled_marketplaces(monkeypatch):
     ]
 
 
-def test_all_sources_active_by_default():
+def test_active_connectors_match_production_defaults():
+    # Production defaults: amazon/flipkart API-only, myntra HTTP-only, and
+    # ajio DISABLED (deferred, never called).  get_active_connectors reflects
+    # those defaults without any environment overrides.
     assert [c.key for c in get_active_connectors()] == [
-        "amazon", "flipkart", "myntra", "ajio",
+        "amazon", "flipkart", "myntra",
     ]
+    assert all(c.data_source == "api" for c in get_active_connectors() if c.key in {"amazon", "flipkart"})
+    assert next(c for c in get_active_connectors() if c.key == "myntra").data_source == "http"
+    ajio = next(c for c in DEFAULT_CONNECTORS if c.key == "ajio")
+    assert ajio.data_source == "disabled"
+    assert ajio.enabled is False

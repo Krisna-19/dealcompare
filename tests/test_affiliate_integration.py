@@ -94,6 +94,8 @@ def test_configured_custom_tag_applied(monkeypatch):
     from app.core.config import get_settings
 
     monkeypatch.setenv("AJIO_AFFILIATE_TAG", "aj-cfg-21")
+    # Ajio is disabled by default; enable it so its offer participates here.
+    monkeypatch.setenv("AJIO_DATA_SOURCE", "scraper")
     get_settings.cache_clear()
 
     _mock_all_platforms(monkeypatch, {

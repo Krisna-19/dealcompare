@@ -342,8 +342,9 @@ def test_dispatcher_never_uses_scraper_when_api_selected(monkeypatch):
     assert scraper_calls["n"] == 0
 
 
-def test_dispatcher_uses_scraper_by_default(monkeypatch):
-    # AMAZON_DATA_SOURCE unset -> default scraper path, unchanged.
+def test_dispatcher_uses_api_by_default(monkeypatch):
+    # AMAZON_DATA_SOURCE unset -> default "api": the Creators API adapter is
+    # selected and the legacy Playwright scraper is never reached.
     scraper_calls = {"n": 0}
 
     def fake_scraper(query):
@@ -354,8 +355,8 @@ def test_dispatcher_uses_scraper_by_default(monkeypatch):
     monkeypatch.setattr(amazon, "_search_amazon_creators", lambda q: [{"title": "api"}])
 
     results = amazon.search_amazon("iphone 15")
-    assert results == [{"title": "scraper-offer"}]
-    assert scraper_calls["n"] == 1
+    assert results == [{"title": "api"}]
+    assert scraper_calls["n"] == 0
 
 
 # --- Headers / request shape -------------------------------------------------

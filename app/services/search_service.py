@@ -16,9 +16,10 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Search response cache.
 #
-# search_all() caches successful (non-empty) results per normalized query so
-# that repeated / equivalent searches short-circuit the expensive live browser
-# pipeline.  A shallow copy of the cached list is returned so callers can
+# search_all() / search_with_marketplaces() cache successful (non-empty)
+# results per normalized query so that repeated / equivalent searches
+# short-circuit the expensive live browser pipeline.  A shallow copy of the
+# cached payload (products + marketplace summary) is returned so callers can
 # never corrupt the shared entry.
 #
 # Failure contract is preserved: only genuinely successful (non-empty) results
@@ -81,7 +82,7 @@ def _normalized_cache_key(query: str) -> str:
 
 
 def _cache_lookup(key):
-    """Return a cached result list (shallow copy) or None on miss/expiry."""
+    """Return a cached outcome dict (shallow copies) or None on miss/expiry."""
     settings = get_settings()
     if not settings.search_cache_enabled:
         return None
@@ -90,20 +91,23 @@ def _cache_lookup(key):
         entry = _search_cache.get(key)
         if not entry:
             return None
-        stamp, results = entry
+        stamp, outcome = entry
         if time.monotonic() - stamp > settings.search_cache_ttl_seconds:
             _search_cache.pop(key, None)
             return None
-        return list(results)
+        return {
+            "products": list(outcome["products"]),
+            "marketplaces": [dict(m) for m in outcome["marketplaces"]],
+        }
 
 
-def _cache_store(key, results):
-    """Store a successful (non-empty) result list for *key*."""
+def _cache_store(key, outcome):
+    """Store a successful (non-empty) outcome dict {products, marketplaces}."""
     settings = get_settings()
     if not settings.search_cache_enabled:
         return
     with _search_cache_lock:
-        _search_cache[key] = (time.monotonic(), results)
+        _search_cache[key] = (time.monotonic(), outcome)
 
 
 def clear_search_cache():
@@ -242,7 +246,7 @@ def _stored_search_offers(key):
     return None
 
 
-def _persist_results(query_key, query, all_products, sources, results):
+def _persist_results(query_key, query, all_products, marketplaces):
     """Best-effort persistence of a fresh non-empty search into the catalog."""
     if not _catalog_enabled() or not all_products:
         return
@@ -254,31 +258,94 @@ def _persist_results(query_key, query, all_products, sources, results):
             all_products,
             source_updates=[
                 {
-                    "key": connector.key,
-                    "display_name": connector.display_name,
-                    "kind": connector.active_kind,
-                    "ok": bool(items),
+                    "key": m["key"],
+                    "display_name": m["display_name"],
+                    "kind": m["kind"],
+                    "ok": m["ok"],
                 }
-                for (connector, _), items in zip(sources, results)
+                for m in marketplaces
             ],
         )
     except Exception as e:
         logger.warning("Catalog persistence failed: %r", e)
 
 
+# Display name -> connector key used to derive summaries for previously-stored
+# offers (the in-memory/catalog paths), where only offer-shaped data survives.
+_PLATFORM_TO_KEY = {
+    "Amazon": "amazon",
+    "Flipkart": "flipkart",
+    "Myntra": "myntra",
+    "Ajio": "ajio",
+}
+
+
+def _marketplaces_from_products(products):
+    """Derive an honest marketplace summary from a list of real offers.
+
+    Used when serving previously-stored (catalog) offers: only marketplaces
+    that actually appear in the real offers are listed; every entry reports
+    its real offer count and ok=true.  kind is empty because the retrieval
+    kind is not preserved in the stored offer shape.
+    """
+    counts = {}
+    for p in products or []:
+        platform = (p or {}).get("platform")
+        if not platform:
+            continue
+        counts[platform] = counts.get(platform, 0) + 1
+    return [
+        {
+            "key": _PLATFORM_TO_KEY.get(platform, platform.lower()),
+            "display_name": platform,
+            "kind": "",
+            "offer_count": count,
+            "ok": True,
+        }
+        for platform, count in sorted(counts.items())
+    ]
+
+
 async def search_all(query: str):
+    """Run the pipeline and return ONLY the collected products (list[dict]).
+
+    Kept as the familiar list-returning entry point.  The marketplace summary
+    is computed inside the same single pipeline run; callers that need it use
+    search_with_marketplaces().
+    """
+    outcome = await _search_run(query)
+    return outcome["products"]
+
+
+async def search_with_marketplaces(query: str):
+    """Run the pipeline and return {"products": [...], "marketplaces": [...]}.
+
+    `marketplaces` is built from the ACTUAL connector execution for this query:
+    one entry per source that ran, reporting the real offer count and ok
+    status.  It is never manufactured, never implies offers from a source that
+    did not return any, and never mentions a marketplace that is not part of
+    the run (e.g. a disabled one).
+    """
+    return await _search_run(query)
+
+
+async def _search_run(query: str) -> dict:
+    """The single pipeline behind search_all() / search_with_marketplaces()."""
 
     logger.info("Searching for: %s", query)
 
     key = _normalized_cache_key(query)
     cached = _cache_lookup(key)
     if cached is not None:
-        logger.info("Cache hit for '%s' (%d products)", key, len(cached))
+        logger.info("Cache hit for '%s' (%d products)", key, len(cached["products"]))
         return cached
 
     stored = _stored_search_offers(key)
     if stored is not None:
-        return stored
+        return {
+            "products": stored,
+            "marketplaces": _marketplaces_from_products(stored),
+        }
 
     coalesce_map = _get_coalesce_map()
     in_flight = coalesce_map.get(key)
@@ -286,7 +353,8 @@ async def search_all(query: str):
         # An identical search is already running.  Share its outcome instead
         # of opening a second scrape pipeline / consuming a concurrency slot.
         logger.info("Coalescing into in-flight search for '%s'", key)
-        return await in_flight
+        outcome = await in_flight
+        return outcome
 
     # Check-and-insert happens synchronously (no await between the cache
     # lookup above and the gather below), so two tasks cannot both miss and
@@ -312,15 +380,31 @@ async def search_all(query: str):
         for items in results:
             all_products.extend(items)
 
+        marketplaces = [
+            {
+                "key": connector.key,
+                "display_name": connector.display_name,
+                "kind": connector.active_kind,
+                "offer_count": len(items),
+                "ok": bool(items),
+            }
+            for (connector, _), items in zip(sources, results)
+        ]
+
         logger.info("Total products collected: %d", len(all_products))
 
+        outcome = {
+            "products": all_products,
+            "marketplaces": marketplaces,
+        }
+
         if all_products:
-            _cache_store(key, all_products)
-            _persist_results(key, query, all_products, sources, results)
+            _cache_store(key, outcome)
+            _persist_results(key, query, all_products, marketplaces)
 
         if not future.done():
-            future.set_result(all_products)
-        return all_products
+            future.set_result(outcome)
+        return outcome
     except Exception as e:
         if not future.done():
             future.set_exception(e)

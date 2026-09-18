@@ -6,13 +6,27 @@ offer is merged into that product's single card â€” NOT into a duplicate card â€
 and that best-offer selection, offer integrity, and card identity all hold
 without any change to aggregation logic.  Ajio data here is mocked at the
 search-service seam (the same way the other cross-store tests mock scrapers).
+
+AJIO_DATA_SOURCE defaults to "disabled" in production; these contract tests
+explicitly enable it so the Ajio connector participates in the pipeline run.
 """
+import pytest
 from fastapi.testclient import TestClient
 
+from app.core.config import get_settings
 from app.main import app
 from app.services import search_service
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def _enable_ajio(monkeypatch):
+    """Manage settings env so Ajio is ACTIVE for these contract tests only."""
+    monkeypatch.setenv("AJIO_DATA_SOURCE", "scraper")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 def test_ajio_offer_merges_into_existing_product_card(monkeypatch):

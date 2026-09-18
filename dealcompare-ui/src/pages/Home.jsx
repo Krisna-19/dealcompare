@@ -1,11 +1,15 @@
 import { useMemo, useState } from "react";
 import {
-  STORES,
+  ALL_STORES,
   SORT_MODES,
   filterByStore,
   sortProducts,
 } from "../lib/filterSort";
-import { visibleOffers } from "../lib/deals";
+import {
+  availableMarketplaces,
+  marketplaceStatusSummary,
+  visibleOffers,
+} from "../lib/deals";
 import SearchHeader from "../components/SearchHeader";
 import ProductCard from "../components/ProductCard";
 import { FeedbackState, LoadingCards } from "../components/FeedbackState";
@@ -50,8 +54,9 @@ export default function Home() {
   const [searched, setSearched] = useState(null);
   const [status, setStatus] = useState("idle"); // idle | loading | done | empty | error
   const [results, setResults] = useState([]);
+  const [marketplaces, setMarketplaces] = useState([]);
   const [category, setCategory] = useState("General");
-  const [activeStore, setActiveStore] = useState("All Stores");
+  const [activeStore, setActiveStore] = useState(ALL_STORES);
   const [sortMode, setSortMode] = useState("best-deal");
 
   const searchDeals = async (rawQuery) => {
@@ -61,7 +66,8 @@ export default function Home() {
     // Search lifecycle resets. Derived/filtered lists never re-trigger fetches.
     setStatus("loading");
     setResults([]);
-    setActiveStore("All Stores");
+    setMarketplaces([]);
+    setActiveStore(ALL_STORES);
     setSortMode("best-deal");
     setSearched(trimmed);
 
@@ -86,6 +92,9 @@ export default function Home() {
 
       if (cards.length > 0) {
         setResults(cards);
+        setMarketplaces(
+          Array.isArray(data.marketplaces) ? data.marketplaces : []
+        );
         setCategory(data.category || "General");
         setStatus("done");
       } else {
@@ -114,8 +123,29 @@ export default function Home() {
   );
 
   const offerCount = useMemo(
-    () => results.reduce((total, card) => total + visibleOffers(card, "All Stores").length, 0),
+    () => results.reduce((total, card) => total + visibleOffers(card, ALL_STORES).length, 0),
     [results]
+  );
+
+  /* Per-source chips come ONLY from the data: the marketplaces that actually
+     returned at least one valid offer.  A marketplace is never offered as a
+     filter merely because it exists. */
+  const availableMps = useMemo(() => availableMarketplaces(results), [results]);
+
+  const availableLabel = useMemo(() => {
+    const n = availableMps.length;
+    if (n === 0) return "";
+    return `Available on ${n} marketplace${n === 1 ? "" : "s"}`;
+  }, [availableMps]);
+
+  /* Honest per-source status (from the backend summary), shown only when the
+     backend reports that a source that RAN produced no offers. */
+  const statusLines = useMemo(
+    () =>
+      marketplaceStatusSummary(marketplaces)
+        .filter((s) => !s.ok)
+        .map((s) => `${s.display_name}: no offers right now`),
+    [marketplaces]
   );
 
   return (
@@ -159,7 +189,7 @@ export default function Home() {
         <>
           <div className="filter-bar" role="group" aria-label="Filter and sort results">
             <div className="store-filters">
-              {STORES.map((store) => (
+              {[ALL_STORES, ...availableMps].map((store) => (
                 <button
                   key={store}
                   type="button"
@@ -187,6 +217,17 @@ export default function Home() {
               </select>
             </label>
           </div>
+
+          {availableLabel && (
+            <p className="results-meta" data-testid="available-marketplaces">
+              {availableLabel}
+            </p>
+          )}
+          {statusLines.length > 0 && (
+            <p className="marketplace-status" data-testid="marketplace-status">
+              {statusLines.join(" · ")}
+            </p>
+          )}
 
           {cards.length === 0 ? (
             <FeedbackState

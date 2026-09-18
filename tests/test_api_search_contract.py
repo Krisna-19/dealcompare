@@ -87,6 +87,11 @@ def test_search_returns_honest_empty_result_without_fakes(monkeypatch):
         "message": "No products found",
         "category": "Electronics",
         "results": [],
+        "marketplaces": [
+            {"key": "amazon", "display_name": "Amazon", "kind": "api", "offer_count": 0, "ok": False},
+            {"key": "flipkart", "display_name": "Flipkart", "kind": "api", "offer_count": 0, "ok": False},
+            {"key": "myntra", "display_name": "Myntra", "kind": "http", "offer_count": 0, "ok": False},
+        ],
     }
 
 
@@ -159,7 +164,7 @@ def test_home_endpoint_reports_running_api():
 def test_search_response_schema_is_exact(monkeypatch):
     """
     The full /search response must match the published schema exactly:
-    top-level {message, category, results}; every card has
+    top-level {message, category, results, marketplaces}; every card has
     {title, best_price, best_platform, best_url, image, offers}; every offer
     has {title, product_key, platform, price_value, price_display, url,
     image} with the documented types.  This pins the contract so the
@@ -175,10 +180,21 @@ def test_search_response_schema_is_exact(monkeypatch):
     assert res.status_code == 200
     data = res.json()
 
-    assert set(data.keys()) == {"message", "category", "results"}
+    assert set(data.keys()) == {"message", "category", "results", "marketplaces"}
     assert data["message"] == "Products compared successfully"
     assert data["category"] == "Electronics"
     assert isinstance(data["results"], list) and data["results"]
+
+    # The marketplace summary reflects the REAL connector outcomes: Amazon
+    # returned the two mocked offers (ok), Flipkart/Myntra/Ajio returned none
+    # (Ajio is disabled so it never appears at all).
+    by_key = {m["key"]: m for m in data["marketplaces"]}
+    assert set(by_key) == {"amazon", "flipkart", "myntra"}
+    assert by_key["amazon"]["offer_count"] == 2 and by_key["amazon"]["ok"] is True
+    assert by_key["amazon"]["kind"] == "api"
+    assert by_key["flipkart"]["offer_count"] == 0 and by_key["flipkart"]["ok"] is False
+    assert by_key["myntra"]["offer_count"] == 0 and by_key["myntra"]["ok"] is False
+    assert "ajio" not in by_key
 
     for card in data["results"]:
         assert set(card.keys()) == {

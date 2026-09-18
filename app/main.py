@@ -17,7 +17,7 @@ from app.core.errors import (
     ERROR_INTERNAL,
     http_error,
 )
-from app.services.search_service import search_all
+from app.services.search_service import search_with_marketplaces
 from app.services.ranking_service import filter_irrelevant_products
 from app.aggregator.aggregator import aggregate_products
 from app.services.affiliate_service import enrich_results
@@ -230,7 +230,7 @@ async def _search_impl(query: str):
     category = detect_category(q)
 
     try:
-        products = await search_all(q)
+        outcome = await search_with_marketplaces(q)
     except Exception as e:
         # Upstream/pipeline failure: report honestly as a server-side
         # upstream problem, never as fabricated or empty "success" data.
@@ -246,8 +246,15 @@ async def _search_impl(query: str):
             "Product sources are temporarily unavailable. Please try again shortly.",
         )
 
+    products = outcome["products"] if isinstance(outcome, dict) else outcome
+    marketplaces = (
+        outcome.get("marketplaces", []) if isinstance(outcome, dict) else []
+    )
+
     if not products:
-        # Honest empty result: genuinely no products found.
+        # Honest empty result: genuinely no products found.  The marketplace
+        # summary (real per-source outcomes for this query) is still returned
+        # so the UI can show which marketplaces answered and which did not.
         metrics.inc(
             "dc_search_requests_total",
             "Search requests by outcome",
@@ -257,6 +264,7 @@ async def _search_impl(query: str):
             "message": "No products found",
             "category": category,
             "results": [],
+            "marketplaces": marketplaces,
         }
 
     products = filter_irrelevant_products(products, q)
@@ -271,6 +279,7 @@ async def _search_impl(query: str):
             "message": "No products found",
             "category": category,
             "results": [],
+            "marketplaces": marketplaces,
         }
 
     try:
@@ -307,6 +316,7 @@ async def _search_impl(query: str):
         "message": "Products compared successfully",
         "category": category,
         "results": cards,
+        "marketplaces": marketplaces,
     }
 
 

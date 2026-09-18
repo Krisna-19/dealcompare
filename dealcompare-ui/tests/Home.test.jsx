@@ -203,6 +203,71 @@ describe("Home results experience", () => {
     expect(await screen.findByText("Couldn’t compare prices")).toBeInTheDocument();
   });
 
+  it("derives store filters from the data, not a hard-coded list", async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+
+    await search(user, "iphone 15", searchOkPayload([
+      card([offer("Flipkart", 59900), offer("Amazon", 61999)]),
+    ]));
+
+    await screen.findByRole("article");
+    expect(screen.getByRole("button", { name: "All Stores" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Flipkart" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Amazon" })).toBeInTheDocument();
+    // No marketplace exists as a filter merely because it exists in the stack.
+    expect(screen.queryByRole("button", { name: "Myntra" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ajio" })).not.toBeInTheDocument();
+  });
+
+  it("reports how many marketplaces actually returned offers (plural)", async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+
+    await search(user, "samsung", searchOkPayload([
+      card([offer("Flipkart", 55999), offer("Amazon", 57999)]),
+    ]));
+
+    await screen.findByRole("article");
+    expect(screen.getByTestId("available-marketplaces")).toHaveTextContent(
+      "Available on 2 marketplaces"
+    );
+  });
+
+  it("reports a single marketplace truthfully (singular)", async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+
+    await search(user, "samsung", searchOkPayload([card([offer("Flipkart", 55999)])]));
+
+    await screen.findByRole("article");
+    expect(screen.getByTestId("available-marketplaces")).toHaveTextContent(
+      "Available on 1 marketplace"
+    );
+  });
+
+  it("shows honest per-source status when a marketplace reports no offers", async () => {
+    const user = userEvent.setup();
+    const payload = searchOkPayload([
+      card([offer("Flipkart", 59900), offer("Amazon", 61999)]),
+    ]);
+    payload.marketplaces = [
+      { key: "flipkart", display_name: "Flipkart", kind: "api", offer_count: 1, ok: true },
+      { key: "amazon", display_name: "Amazon", kind: "api", offer_count: 1, ok: true },
+      { key: "myntra", display_name: "Myntra", kind: "http", offer_count: 0, ok: false },
+    ];
+    render(<Home />);
+
+    await search(user, "iphone 15", payload);
+
+    await screen.findByRole("article");
+    // The failed/silent source is reported as having no offers — never implied
+    // to have any.  Its offers are NOT served (cards only carry real offers).
+    expect(screen.getByTestId("marketplace-status")).toHaveTextContent(
+      "Myntra: no offers right now"
+    );
+  });
+
   it("shows a loading skeleton while the search is in flight", async () => {
     const user = userEvent.setup();
     vi.stubGlobal("fetch", vi.fn().mockReturnValue(new Promise(() => {})));

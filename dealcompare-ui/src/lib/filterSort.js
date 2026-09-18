@@ -13,7 +13,7 @@
    Pure functions only (no DOM, no React) — unit-tested under Node.
  */
 
-export const STORES = ["All Stores", "Amazon", "Flipkart", "Myntra", "Ajio"];
+export const ALL_STORES = "All Stores";
 
 export const SORT_MODES = [
   { value: "best-deal", label: "Best Deal" },

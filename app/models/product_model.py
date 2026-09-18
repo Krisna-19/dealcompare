@@ -56,12 +56,29 @@ class ProductCard(BaseModel):
     offers: list[Offer] = Field(default_factory=list)
 
 
+class MarketplaceSummary(BaseModel):
+    """One marketplace's contribution to a /search run.
+
+    Built ONLY from actual connector execution/results: each entry reports the
+    real per-source outcome (offer_count of real offers, ok honouring whether
+    the connector produced any).  A marketplace is never listed here unless it
+    was part of the run, and it is never marked ok unless it returned offers.
+    """
+
+    key: str
+    display_name: str
+    kind: str = ""
+    offer_count: int = 0
+    ok: bool = False
+
+
 class SearchResponse(BaseModel):
     """The complete /search response envelope."""
 
     message: str
     category: str
     results: list[ProductCard] = Field(default_factory=list)
+    marketplaces: list[MarketplaceSummary] = Field(default_factory=list)
 
 
 class PricePoint(BaseModel):

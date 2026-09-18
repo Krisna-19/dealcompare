@@ -2,7 +2,7 @@
 // Home.jsx. Run with:  node dealcompare-ui/tests/filterSort.test.js
 import assert from "node:assert";
 import {
-  STORES,
+  ALL_STORES,
   SORT_MODES,
   filterByStore,
   sortProducts,
@@ -54,8 +54,10 @@ const flipkartOnlyCard = card(
 const allCards = [multiStoreCard, amazonOnlyCard, flipkartOnlyCard];
 
 // --- Store = All Stores ------------------------------------------------
-assert.deepStrictEqual(STORES, ["All Stores", "Amazon", "Flipkart", "Myntra", "Ajio"]);
-const allFiltered = filterByStore(allCards, "All Stores");
+// The store list is NOT hard-coded any more (it is data-driven in Home.jsx);
+// only the "All Stores" sentinel label remains a constant.
+assert.strictEqual(ALL_STORES, "All Stores");
+const allFiltered = filterByStore(allCards, ALL_STORES);
 assert.strictEqual(allFiltered.length, 3, "All Stores shows every card");
 assert.strictEqual(cardOffers(multiStoreCard, "All Stores").length, 3, "All Stores shows all offers");
 assert.strictEqual(effectiveBestPrice(multiStoreCard, "All Stores"), 279, "All Stores best price = global min");

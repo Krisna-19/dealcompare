@@ -196,7 +196,7 @@ def test_history_endpoint_never_touches_connectors(tmp_path, monkeypatch):
     """The endpoint reads the catalog and nothing else (no scraping)."""
     _use_store(tmp_path, monkeypatch)
     try:
-        monkeypatch.setattr(main_module, "search_all",
+        monkeypatch.setattr(main_module, "search_with_marketplaces",
                             lambda *a: pytest.fail("must not scrape"))
         res = client.get("/products/anything/price-history")
         assert res.status_code == 200

@@ -104,23 +104,27 @@ class Settings(BaseSettings):
     # call time: a marketplace whose source is "disabled" is dropped from the
     # active source list entirely (deferred), never called, and never reported.
     #
-    #   amazon      "scraper" (default) | "api"          - Creators API adapter
-    #   flipkart    "scraper" (default) | "api"          - Affiliate API (with
-    #               scraper fallback, unchanged legacy behaviour)
-    #   myntra      "http" (default)    | "scraper"      - "http" is the
-    #               browser-free honest-empty path; "scraper" preserves the
-    #               legacy HTTP-primary + Playwright-fallback behaviour
-    #   ajio        "scraper" (default) | "disabled"     - "disabled" defers the
-    #               source (honest empty) with no browser/network attempt
-    amazon_data_source: str = "scraper"
-    flipkart_data_source: str = "scraper"
+    #   amazon      "api" (default) | "scraper"         - Creators API adapter.
+    #               While "api" is selected the Playwright scraper is NEVER
+    #               invoked (missing/ineligible credentials -> honest empty).
+    #   flipkart    "api" (default) | "scraper"         - Affiliate API.  While
+    #               "api" is selected there is NO scraper fallback: missing
+    #               credentials or API failure -> honest empty.
+    #   myntra      "http" (default)    | "scraper"     - "http" is the
+    #               browser-free __myx path (no Playwright); "scraper" preserves
+    #               the legacy HTTP-primary + Playwright-fallback behaviour.
+    #   ajio        "disabled" (default) | "scraper"    - "disabled" defers the
+    #               source (honest empty) with no browser/network attempt.
+    amazon_data_source: str = "api"
+    flipkart_data_source: str = "api"
     myntra_data_source: str = "http"
-    ajio_data_source: str = "scraper"
+    ajio_data_source: str = "disabled"
 
     # --- Flipkart Affiliate API -----------------------------------------------
-    # Optional official Flipkart Affiliate search API (affiliate.flipkart.com).
-    # Enabled only when FLIPKART_DATA_SOURCE=api AND both credentials below are
-    # non-empty; otherwise the existing Playwright scraper is used unchanged.
+    # Official Flipkart Affiliate search API (affiliate.flipkart.com).  The API
+    # data source is the DEFAULT.  It is enabled only when FLIPKART_DATA_SOURCE
+    # =api AND both credentials below are non-empty; without both the adapter
+    # returns honest empty and NEVER falls back to the Playwright scraper.
     # (The FLIPKART_DATA_SOURCE toggle itself lives in the data-source section
     # above; it is kept duplicated there for the connector registry.)
     # Affiliate Tracking ID (e.g. "abc-21").  Keep empty in non-API mode.
@@ -140,11 +144,11 @@ class Settings(BaseSettings):
 
     # --- Amazon Creators API --------------------------------------------------
     # Official Amazon Creators API (the successor to the Product Advertising
-    # API 5, deprecated 2026-05-15): creatorsapi.amazon.  Enabled only when
-    # AMAZON_DATA_SOURCE=api AND the three credentials/partner tag below are
-    # non-empty; otherwise the adapter fails safe with honest empty and never
-    # falls back to the old Playwright scraper while "api" is selected.
-    # Never commit real credentials to source control.
+    # API 5, deprecated 2026-05-15): creatorsapi.amazon.  The API data source
+    # is the DEFAULT.  Enabled only when AMAZON_DATA_SOURCE=api AND the three
+    # credentials/partner tag below are non-empty; otherwise the adapter fails
+    # safe with honest empty and never falls back to the old Playwright scraper
+    # while "api" is selected.  Never commit real credentials to source control.
     amazon_creator_client_id: str = ""
     amazon_creator_client_secret: str = ""
     amazon_partner_tag: str = ""
