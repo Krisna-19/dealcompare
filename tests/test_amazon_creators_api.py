@@ -104,7 +104,7 @@ def _post_router(*routes):
         if url.startswith(CATALOG_URL + "/catalog/v1/searchItems"):
             return search_resp
         if url.startswith(CATALOG_URL + "/catalog/v1/getItems"):
-            return getitems_resp or FakeResponse(200, {"items": {}})
+            return getitems_resp or FakeResponse(200, {"itemResults": {"items": []}})
         raise AssertionError(f"unexpected POST {url}")
 
     return fake_post
@@ -191,7 +191,7 @@ def test_token_is_cached_until_expiry(monkeypatch):
                 200,
                 _search_payload([_item("B0A", "Samsung Galaxy S24 (Onyx Black, 128 GB)", 64999)]),
             )
-        return FakeResponse(200, {"items": {}})
+        return FakeResponse(200, {"itemResults": {"items": []}})
 
     monkeypatch.setattr(creators.requests, "post", fake_post)
 
@@ -276,9 +276,9 @@ def test_get_items_refines_price_missing_search_item(monkeypatch):
         _item("B0NOOFF01", "Apple iPhone 15 (White, 128 GB)", price=None),  # no offer
         _item("B0HAVEO01", "Apple iPhone 15 (Black, 128 GB)", 64999),
     ])
-    getitems_payload = {"items": {
-        "B0NOOFF01": _item("B0NOOFF01", "Apple iPhone 15 (White, 128 GB)", 62000),
-    }}
+    getitems_payload = {"itemResults": {"items": [
+        _item("B0NOOFF01", "Apple iPhone 15 (White, 128 GB)", 62000),
+    ]}}
     getitems_calls = {"n": 0}
 
     def fake_post(url, **kwargs):
@@ -303,9 +303,9 @@ def test_get_items_refines_price_missing_search_item(monkeypatch):
 
 def test_get_items_lookup_helper(monkeypatch):
     _enable_api(monkeypatch)
-    getitems_payload = {"items": {
-        "B0LOOK001": _item("B0LOOK001", "Apple iPhone 15 (Green, 128 GB)", 64000),
-    }}
+    getitems_payload = {"itemResults": {"items": [
+        _item("B0LOOK001", "Apple iPhone 15 (Green, 128 GB)", 64000),
+    ]}}
     monkeypatch.setattr(
         creators.requests,
         "post",
@@ -318,6 +318,113 @@ def test_get_items_lookup_helper(monkeypatch):
     offers = creators.get_items("B0LOOK001")
     assert len(offers) == 1
     assert offers[0]["product_id"] == "B0LOOK001"
+
+
+def test_get_items_matches_asin_field_not_position(monkeypatch):
+    """GetItems items are looked up by their `asin` field (documented shape).
+
+    The response order is not guaranteed, so the requested ASIN must be
+    matched by the field value — never by array position.
+    """
+    _enable_api(monkeypatch)
+    getitems_payload = {"itemResults": {"items": [
+        _item("B0OTHER01", "Apple iPhone 15 (Red, 128 GB)", 61000),
+        _item("B0WANT001", "Apple iPhone 15 (Black, 128 GB)", 62000),
+    ]}}
+    monkeypatch.setattr(
+        creators.requests,
+        "post",
+        _post_router(
+            FakeResponse(200, _token_body()),
+            FakeResponse(200, {"searchResult": {"items": []}}),
+            FakeResponse(200, getitems_payload),
+        ),
+    )
+    offers = creators.get_items("B0WANT001")
+    assert len(offers) == 1
+    assert offers[0]["product_id"] == "B0WANT001"
+
+
+def test_get_items_recognises_itemsresult_doc_variant(monkeypatch):
+    """Amazon's cURL guide renders the container as `itemsResult`; both parse."""
+    _enable_api(monkeypatch)
+    getitems_payload = {"itemsResult": {"items": [
+        _item("B0CURL001", "Apple iPhone 15 (Purple, 128 GB)", 63000),
+    ]}}
+    monkeypatch.setattr(
+        creators.requests,
+        "post",
+        _post_router(
+            FakeResponse(200, _token_body()),
+            FakeResponse(200, {"searchResult": {"items": []}}),
+            FakeResponse(200, getitems_payload),
+        ),
+    )
+    offers = creators.get_items("B0CURL001")
+    assert len(offers) == 1
+    assert offers[0]["product_id"] == "B0CURL001"
+
+
+def test_get_items_garbage_response_returns_empty(monkeypatch):
+    _enable_api(monkeypatch)
+    for junk in (None, {"foo": "bar"}, {"itemResults": {"items": "nope"}}):
+        monkeypatch.setattr(
+            creators.requests,
+            "post",
+            _post_router(
+                FakeResponse(200, _token_body()),
+                FakeResponse(200, {"searchResult": {"items": []}}),
+                FakeResponse(200, junk) if junk is not None else FakeResponse(200, {}),
+            ),
+        )
+        assert creators.get_items("B0WANT001") == []
+
+
+def test_search_catalog_429_returns_empty(monkeypatch):
+    """Rate-limited/transient catalog failure -> honest empty, no retry loop."""
+    _enable_api(monkeypatch)
+    calls = {"n": 0}
+
+    def fake_post(url, **kwargs):
+        calls["n"] += 1
+        if url == TOKEN_URL:
+            return FakeResponse(200, _token_body())
+        return FakeResponse(429, {"errors": [{"code": "TooManyRequests"}]})
+
+    monkeypatch.setattr(creators.requests, "post", fake_post)
+
+    assert creators.search_amazon_creators("iphone 15") == []
+    assert calls["n"] == 2  # token + exactly ONE catalog call; never a loop
+
+
+def test_search_get_items_refinement_handles_real_list_shape(monkeypatch):
+    """The GetItems refinement parses itemResults.items as a LIST."""
+    _enable_api(monkeypatch)
+    search_payload = _search_payload([
+        _item("B0NOOFF01", "Apple iPhone 15 (White, 128 GB)", price=None),
+    ])
+    getitems_payload = {"itemResults": {"items": [
+        _item("B0NOOFF01", "Apple iPhone 15 (White, 128 GB)", 62000),
+    ]}}
+    getitems_calls = {"n": 0}
+
+    def fake_post(url, **kwargs):
+        if url == TOKEN_URL:
+            return FakeResponse(200, _token_body())
+        if url.startswith(CATALOG_URL + "/catalog/v1/searchItems"):
+            return FakeResponse(200, search_payload)
+        if url.startswith(CATALOG_URL + "/catalog/v1/getItems"):
+            getitems_calls["n"] += 1
+            assert kwargs["json"]["itemIds"] == ["B0NOOFF01"]
+            assert kwargs["json"]["marketplace"] == "www.amazon.in"
+            return FakeResponse(200, getitems_payload)
+        raise AssertionError(url)
+
+    monkeypatch.setattr(creators.requests, "post", fake_post)
+
+    results = creators.search_amazon_creators("iphone 15")
+    assert getitems_calls["n"] == 1
+    assert {o["product_id"] for o in results} == {"B0NOOFF01"}
 
 
 # --- Amazon dispatcher (api vs scraper) -------------------------------------
@@ -380,6 +487,7 @@ def test_catalog_request_carries_bearer_and_marketplace_headers(monkeypatch):
     assert seen.get("Authorization") == "Bearer tok_abc123"
     assert seen.get("x-marketplace") == "www.amazon.in"
     assert seen["payload"].get("partnerTag") == "testtag-21"
+    assert seen["payload"].get("marketplace") == "www.amazon.in"
     assert all(r in seen["payload"]["resources"] for r in (
         "images.primary.large",
         "itemInfo.title",

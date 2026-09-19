@@ -50,8 +50,11 @@ Endpoints (verified against the public Creators API documentation):
                 ]}}
 
     GetItems (used when a search item arrives without an offer, i.e. "when
-    needed"):  POST {base}/catalog/v1/getItems  with body itemIds=[asin],
-    same headers/resources; response maps ASIN -> item under {"items": {...}}.
+    needed"):  POST {base}/catalog/v1/getItems  with body itemIds=[asin] and
+    the same headers/resources; the response nests items as a LIST under
+    `itemResults.items` (each dict carrying an "asin" field — the documented
+    shape; Amazon's cURL guide renders the container as "itemsResult").  The
+    adapter looks the requested ASIN up by that field.
 
 Normalisation map to the shared DealCompare contract:
     title            <- itemInfo.title.displayValue
@@ -214,10 +217,16 @@ def _catalog_headers(token: str) -> dict:
 
 
 def _catalog_body(**extra) -> dict:
-    """Base JSON body: partnerTag + resources, then the caller's fields."""
+    """Base JSON body: partnerTag + marketplace + resources, then caller's fields.
+
+    `marketplace` is a REQUIRED request parameter on every Creators API call
+    (checked against the Common Request Headers and Parameters doc) and
+    travels here as well as in the x-marketplace header.
+    """
     settings = get_settings()
     return {
         "partnerTag": settings.amazon_partner_tag.strip(),
+        "marketplace": settings.amazon_marketplace.strip() or "www.amazon.in",
         "resources": list(_CATALOG_RESOURCES),
         **extra,
     }
@@ -266,11 +275,34 @@ def _request_search_items(query: str, token: str):
 
 
 def _request_get_items(asins, token: str):
-    """GetItems call for *asins* -> {"items": {asin: item}} or None."""
+    """GetItems call for *asins* -> {"itemResults": {"items": [...]}} or None."""
     if not asins:
         return None
     body = _catalog_body(itemIds=[a for a in asins if a])
     return _catalog_request(_GET_ITEMS_PATH, token, body)
+
+
+def _item_from_get_items_response(data, asin: str):
+    """Find one item in a GetItems response by its ASIN field.
+
+    The documented response nests items as a LIST under `itemResults.items`
+    (each dict carrying "asin"); Amazon's cURL guide renders the same
+    container as "itemsResult".  Both spellings are read and the requested
+    ASIN is matched by its field value (the ordering of items in the response
+    is not guaranteed, so positional lookup is never used).
+    """
+    if not isinstance(data, dict) or not asin:
+        return None
+    container = data.get("itemResults")
+    if not isinstance(container, dict):
+        container = data.get("itemsResult")
+    items = (container or {}).get("items") if isinstance(container, dict) else None
+    if not isinstance(items, list):
+        return None
+    for item in items:
+        if isinstance(item, dict) and str(item.get("asin") or "").strip() == asin:
+            return item
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -407,7 +439,7 @@ def get_items(asin: str):
     data = _request_get_items([asin], token)
     if not data:
         return []
-    item = (data.get("items") or {}).get(asin)
+    item = _item_from_get_items_response(data, asin)
     offer = _extract_item(item)
     return [offer] if offer else []
 
@@ -458,7 +490,9 @@ def search_amazon_creators(query: str):
         refill = _request_get_items(missing, token)
         if refill:
             for offer_asin in missing:
-                offer = _extract_item((refill.get("items") or {}).get(offer_asin))
+                offer = _extract_item(
+                    _item_from_get_items_response(refill, offer_asin)
+                )
                 if offer is not None:
                     results.append(offer)
 

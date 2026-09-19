@@ -455,15 +455,28 @@ def _extract_physical_size(joined):
 
 
 def _extract_model_tokens(tokens):
-    """Model fingerprint: brand-aware run of identity words vs attributes."""
-    brand_idx = None
-    i = 0
-    n = len(tokens)
-    while i < n and tokens[i] in _BRAND_TOKEN:
-        brand_idx = i
-        i += 1
+    """Model fingerprint: brand-aware run of identity words vs attributes.
 
-    start = brand_idx + 1 if brand_idx is not None else 0
+    Accessory titles usually open with the merchant/retailer brand name, not
+    the product brand (e.g. "Luxury Kase ... Samsung Galaxy S24 Back Case").
+    Starting the identity run at index 0 lets those merchant words fill the
+    fingerprint and hide the numeric model anchor, so genuine base-model
+    accessories were unfairly dropped by variant matching and separate SKUs
+    of the same phone failed to merge.  The run therefore starts at the
+    FIRST recognised product-brand token, unless a numeric model token has
+    already begun the identity earlier (which protects trailing brand
+    mentions like "... <Samsung Original>").
+    """
+    start = 0
+    for i, token in enumerate(tokens):
+        if token not in _BRAND_TOKEN:
+            continue
+        prefix_has_digit_model = any(
+            ch.isdigit() for t in tokens[:i] for ch in t
+        )
+        if not prefix_has_digit_model:
+            start = i + 1
+        break
 
     parts = []
     i = start

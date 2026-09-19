@@ -270,7 +270,17 @@ def search_flipkart_api(query: str):
         contract (same fields as the scraper).  On any failure — missing
         credentials, network error, non-200, invalid/empty payload — returns
         [] (honest empty).  Never fabricates products or prices.
+
+    Like the Amazon Creators adapter, missing credentials short-circuit to
+    [] WITHOUT any network attempt (no throwaway 401 against the Affiliate
+    endpoint with empty auth headers).
     """
+    if not api_enabled():
+        logger.info(
+            "Flipkart Affiliate API not enabled (FLIPKART_DATA_SOURCE/api + credentials)"
+        )
+        return []
+
     settings = get_settings()
     raw_products = _parse_search_response(_request_search(query))
     if not raw_products:

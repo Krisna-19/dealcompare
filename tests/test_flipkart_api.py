@@ -524,23 +524,39 @@ def test_search_flipkart_uses_scraper_when_scraper_mode(monkeypatch):
 
 def test_search_flipkart_uses_api_by_default(monkeypatch):
     # FLIPKART_DATA_SOURCE unset -> default "api".  Missing credentials must
-    # yield honest empty and the Playwright scraper must NEVER be reached.
+    # yield honest empty WITHOUT any network attempt and the Playwright
+    # scraper must NEVER be reached.
     api_calls = _stub_api_recorder(monkeypatch)
     scraper_calls = _stub_scraper_recorder(monkeypatch)
 
     assert flipkart.search_flipkart("iphone") == []
     assert scraper_calls["n"] == 0  # no scraper fallback by default
-    assert api_calls["n"] == 1  # api adapter consulted, but short-circuits to []
+    assert api_calls["n"] == 0  # no network call without credentials
 
 
 def test_search_flipkart_default_api_ignores_scraper_results(monkeypatch):
     # Even when a stubbed scraper COULD return results, the api-by-default
-    # path never invokes it (missing creds -> honest empty).
+    # path never invokes it (missing creds -> honest empty, no network).
     api_calls = _stub_api_recorder(monkeypatch)
     _stub_scraper(monkeypatch, [{"title": "scraper-result"}])
 
     assert flipkart.search_flipkart("iphone") == []
-    assert api_calls["n"] == 1  # adapter short-circuits to honest empty
+    assert api_calls["n"] == 0  # adapter short-circuits before any network
+
+
+def test_search_flipkart_api_missing_creds_never_hits_network(monkeypatch):
+    """Direct adapter call without credentials -> [] and NO network request."""
+    monkeypatch.setenv("FLIPKART_DATA_SOURCE", "api")  # creds left unset
+    calls = {"n": 0}
+
+    def fake_get(url, **kwargs):
+        calls["n"] += 1
+        raise AssertionError("no network call may happen without credentials")
+
+    monkeypatch.setattr(flipkart_api.requests, "get", fake_get)
+
+    assert flipkart_api.search_flipkart_api("iphone") == []
+    assert calls["n"] == 0
 
 
 # --- Product URL / tracking handling ----------------------------------------

@@ -229,3 +229,27 @@ def test_marketplace_prefix_does_not_pollute_model():
         )["model"]
         == "s24"
     )
+
+
+def test_merchant_brand_prefix_does_not_pollute_model():
+    # Accessory titles open with the merchant/retailer name, then the product
+    # brand.  The model fingerprint must start at the product brand, not the
+    # merchant prefix, so genuine base-model accessories keep their numeric
+    # anchor instead of degrading to store-name words.
+    assert extract_variant_attributes(
+        "Luxury Kase Luxury Kase Solid Printed Samsung Galaxy S24 5G Back Case"
+    )["model"] == "s24-back-case"
+    assert extract_variant_attributes(
+        "COVERLY COVERLY Abstract Printed iPhone 15 Back Case"
+    )["model"] == "15-back-case"
+    assert (
+        extract_variant_attributes(
+            "QRIOH QRIOH Quirky Printed Samsung Galaxy S24 FE 5G Silicone Back Case"
+        )["model"]
+        == "s24-fe-silicone-back"
+    )
+    # A trailing brand mention must not discard a model run already begun
+    # earlier in the title.
+    assert extract_variant_attributes(
+        "S24 5G Back Case (Samsung Original)"
+    )["model"] == "s24-back-case-original"

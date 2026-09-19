@@ -170,6 +170,31 @@ def test_summary_connector_failure_isolated_from_success(monkeypatch):
     assert by_key["myntra"]["ok"] is False
 
 
+def test_summary_every_source_raising_is_honest_empty_not_an_error(monkeypatch):
+    """ALL sources crashing -> HTTP 200 + [] + per-source ok:false.
+
+    The strongest form of the failure-isolation contract: failed sources are
+    honest empty, never an HTTP error and never fabricated data.
+    """
+    def boom(q):
+        raise RuntimeError("source down")
+
+    monkeypatch.setattr(search_service, "search_amazon", boom)
+    monkeypatch.setattr(search_service, "search_flipkart", boom)
+    monkeypatch.setattr(search_service, "search_myntra", boom)
+    monkeypatch.setattr(search_service, "search_ajio", boom)
+
+    res = client.get("/search", params={"query": "iphone 15"})
+
+    assert res.status_code == 200
+    data = res.json()
+    assert data["results"] == []
+    by_key = {m["key"]: m for m in data["marketplaces"]}
+    assert set(by_key) == {"amazon", "flipkart", "myntra"}
+    for m in data["marketplaces"]:
+        assert m["offer_count"] == 0 and m["ok"] is False
+
+
 # F/G. missing Amazon + Flipkart credentials ---------------------------------
 
 def test_summary_missing_creds_are_honest_empty_per_source(monkeypatch):

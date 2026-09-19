@@ -231,6 +231,21 @@ def test_search_http_mode_honest_empty_when_http_raises(monkeypatch):
     assert scraper_calls["n"] == 0
 
 
+def test_search_http_mode_honest_empty_when_http_times_out(monkeypatch):
+    """A timed-out HTTP GET is a RequestException -> [] (never a fallback)."""
+    scraper_calls = {"n": 0}
+
+    def slow(url, **kwargs):
+        raise requests.exceptions.Timeout("http_timeout_seconds exceeded")
+
+    monkeypatch.setattr(myntra.requests, "get", slow)
+    _stub_scraper(monkeypatch, [{"title": "scraper-fallback"}])
+
+    results = myntra.search_myntra("shirt")
+    assert results == []
+    assert scraper_calls["n"] == 0
+
+
 def test_search_http_mode_honest_empty_when_http_empty_results(monkeypatch):
     # 200 but the HTML contains no products -> invalid/empty -> [].
     def fake_get(url, **kwargs):

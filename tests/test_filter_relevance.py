@@ -401,6 +401,46 @@ def test_case_h_fe_query_keeps_only_fe():
     assert not any("S24+" in t for t in kept_titles)
 
 
+def test_case_h_merchant_prefixed_base_accessory_is_kept():
+    # Real accessory titles open with the merchant brand; the numeric model
+    # anchor must still be found so the base-model accessory survives while
+    # Ultra / FE variants are still rejected ("samsung galaxy s24").
+    pool = [
+        _offer("Luxury Kase Luxury Kase Solid Printed Samsung Galaxy S24 5G "
+               "Back Case Mobile Cover", "luxury-kase-s24-back-case",
+               "Myntra", 491.0),
+        _offer("PEEPERLY PEEPERLY Conversational Printed Samsung Galaxy S24 "
+               "Ultra 5G Back Case", "peeperly-s24-ultra-back-case",
+               "Myntra", 999.0),
+        _offer("QRIOH QRIOH Quirky Printed Samsung Galaxy S24 FE 5G Silicone "
+               "Back Case", "qrioh-s24-fe-silicone-back-case",
+               "Myntra", 536.0),
+    ]
+    kept = filter_irrelevant_products(pool, "samsung galaxy s24")
+    kept_titles = _kept_titles(kept)
+    assert any("S24 5G Back Case" in t for t in kept_titles)
+    assert not any("Ultra" in t for t in kept_titles)
+    assert not any("FE" in t for t in kept_titles)
+
+
+def test_case_h_merchant_prefixed_iphone_accessories():
+    # Same merchant-prefix pattern on the Apple side: base "iPhone 15" cases
+    # are kept for an "iphone 15" query, "iPhone 15 Pro Max" cases are not.
+    pool = [
+        _offer("COVERLY COVERLY Abstract Printed iPhone 15 Back Case Mobile "
+               "Cover", "coverly-15-back-case", "Myntra", 795.0),
+        _offer("COVERLY COVERLY Cartoon Characters Printed iPhone 15 Pro Max "
+               "Back Case", "coverly-15-pro-max-back-case", "Myntra", 595.0),
+        _offer("TREEMODA TREEMODA iPhone 15 Mobile Back Case",
+               "treemoda-15-back-case", "Myntra", 535.0),
+    ]
+    kept = filter_irrelevant_products(pool, "iphone 15")
+    kept_titles = _kept_titles(kept)
+    assert any("Abstract Printed iPhone 15 Back Case" in t for t in kept_titles)
+    assert any("TREEMODA" in t for t in kept_titles)
+    assert not any("Pro Max" in t for t in kept_titles)
+
+
 def test_case_h_s24_plus_is_canonicalised_to_s24_plus():
     from app.utils.text_utils import extract_product_info
     model = extract_product_info("Samsung Galaxy S24+ 5G (Onyx Black, 256 GB)")[1]
