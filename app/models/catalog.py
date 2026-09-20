@@ -36,7 +36,7 @@ class MarketplaceSource(BaseModel):
 
     key: str                                   # "amazon", "flipkart", ...
     display_name: str                          # "Amazon", "Flipkart", ...
-    kind: str                                  # "api" | "http" | "scrape"
+    kind: str                                  # "api" | "http" | "scrape" | "feed"
     enabled: bool = True
     last_seen_at: Optional[float] = None       # last attempt (any outcome)
     last_ok_at: Optional[float] = None         # last time it returned offers
@@ -49,6 +49,8 @@ class Product(BaseModel):
     id: str
     title: str
     category: Optional[str] = None             # detect_category label, if known
+    description: Optional[str] = None          # merchant-feed copy, if provided
+    brand: Optional[str] = None                # merchant-feed brand, if provided
     # Serialized canonical SKU: list of [attribute_label, value] pairs (None
     # value = attribute not stated = "unknown", never a forced split).
     sku: list[list] = []
@@ -74,6 +76,9 @@ class MarketplaceOffer(BaseModel):
     price_value: float
     price_display: str
     image: str = ""
+    original_price: Optional[float] = None     # list/MRP price, if the source states one
+    availability: Optional[str] = None         # "in_stock" | "out_of_stock"; None when unknown
+    feed_provenance: Optional[str] = None      # merchant-feed source, when the row came from a feed
     strong: Optional[list] = None
     sku: list[list] = []
     # The verbatim original offer dict from the scraper/API.  Kept so /search

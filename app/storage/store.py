@@ -165,84 +165,9 @@ class JsonCatalogStore:
         now = time.time()
         with self._lock:
             doc = self._doc
-            seen_products, seen_offers = [], []
-
-            for offer in offer_dicts:
-                if not isinstance(offer, dict):
-                    continue
-                # Mirrors aggregate_products(): keyless or unpriced listings
-                # are not valid comparable offers.
-                key = (offer.get("product_key") or "").strip()
-                price = offer.get("price_value")
-                if not key or not price or price <= 0:
-                    continue
-                title = offer.get("title") or ""
-                if not title:
-                    continue
-
-                sku = compute_sku(offer)
-                strong = compute_strong(offer)
-
-                product_id = match_offer_to_product(sku, strong, doc["products"])
-                if product_id is None:
-                    product_id = self._new_product_id(doc)
-                    doc["products"][product_id] = {
-                        "id": product_id,
-                        "title": title,
-                        "category": None,
-                        "sku": serialize_sku(sku),
-                        "strong": serialize_strong(strong),
-                        "eans": [],
-                        "query_keys": [query_key],
-                        "first_seen_at": now,
-                        "updated_at": now,
-                    }
-                else:
-                    product = doc["products"][product_id]
-                    if query_key not in product["query_keys"]:
-                        product["query_keys"].append(query_key)
-                    product["updated_at"] = now
-
-                oid = build_offer_id(offer, strong)
-                existing = doc["offers"].get(oid)
-                if existing is None:
-                    doc["offers"][oid] = {
-                        "id": oid,
-                        "product_id": product_id,
-                        "marketplace": offer.get("platform") or "",
-                        "listing_id": _listing_id(strong),
-                        "url": offer.get("url") or "",
-                        "title": title,
-                        "product_key": offer.get("product_key") or "",
-                        "price_value": offer.get("price_value"),
-                        "price_display": offer.get("price_display") or "",
-                        "image": offer.get("image") or "",
-                        "strong": serialize_strong(strong),
-                        "sku": serialize_sku(sku),
-                        "data": copy.deepcopy(offer),
-                        "first_seen_at": now,
-                        "updated_at": now,
-                    }
-                    self._record_snapshot(doc, oid, offer.get("price_value"), now)
-                else:
-                    self._maybe_snapshot_price(
-                        doc, existing, offer.get("price_value"), now
-                    )
-                    existing.update(
-                        product_id=product_id,
-                        marketplace=offer.get("platform") or existing.get("marketplace"),
-                        url=offer.get("url") or existing.get("url"),
-                        title=title,
-                        product_key=offer.get("product_key") or existing.get("product_key"),
-                        price_value=offer.get("price_value"),
-                        price_display=offer.get("price_display") or "",
-                        image=offer.get("image") or "",
-                        updated_at=now,
-                    )
-                    existing["data"] = copy.deepcopy(offer)
-
-                seen_products.append(product_id)
-                seen_offers.append(oid)
+            seen_products, seen_offers, _rejected = self._ingest_offers_locked(
+                doc, offer_dicts, now, query_key
+            )
 
             # Nothing valid survived the aggregator validity filter: leave the
             # catalog (search index, source health, file) completely untouched.
@@ -259,6 +184,165 @@ class JsonCatalogStore:
                 self._apply_source(doc, update, now)
 
             self._flush()
+
+    def ingest_feed(self, source: str, offer_dicts: list,
+                    query_key: Optional[str] = None,
+                    display_name: Optional[str] = None,
+                    identity=None) -> int:
+        """Persist a merchant feed's normalized offers into the catalog.
+
+        Mirrors upsert_search_results() (same validity / matching / offer-row
+        / price-snapshot rules) but is search-independent: no search_index
+        entry is created unless *query_key* is explicitly supplied.  Source
+        health is recorded under *source* with kind "feed".  Returns the
+        number of offers actually accepted (0 when nothing valid survived, in
+        which case the catalog, health and file are left untouched).
+        """
+        if not offer_dicts:
+            return 0
+
+        now = time.time()
+        with self._lock:
+            doc = self._doc
+            seen_products, seen_offers, _rejected = self._ingest_offers_locked(
+                doc, offer_dicts, now,
+                query_key=query_key,
+                feed_provenance=source,
+                identity=identity,
+            )
+            if not seen_offers:
+                return 0
+
+            if query_key:
+                doc["search_index"][query_key] = {
+                    "updated_at": now,
+                    "product_ids": seen_products,
+                    "offer_ids": seen_offers,
+                }
+
+            self._apply_source(doc, {
+                "key": source,
+                "display_name": display_name or source,
+                "kind": "feed",
+                "ok": True,
+            }, now)
+
+            self._flush()
+            return len(seen_offers)
+
+    def _ingest_offers_locked(self, doc, offer_dicts, now, query_key=None,
+                              feed_provenance=None, identity=None):
+        """Shared core for persisting valid offers into the catalog.
+
+        Used by both upsert_search_results (search-driven writes) and
+        ingest_feed (feed-driven writes), so both paths apply the exact same
+        validity rule, matching, offer-row update and price-snapshot logic.
+
+        Returns (seen_products, seen_offers, rejected): the product/offer ids
+        actually written plus a count of offers skipped by the validity
+        filter.  *identity*, when given, is a callable(offer) -> (sku, strong)
+        that lets feed ingestion anchor identity on a genuinely supplied feed
+        SKU without changing the search path.
+        """
+        seen_products, seen_offers, rejected = [], [], 0
+
+        for offer in offer_dicts:
+            if not isinstance(offer, dict):
+                rejected += 1
+                continue
+            # Mirrors aggregate_products(): keyless or unpriced listings
+            # are not valid comparable offers.
+            key = (offer.get("product_key") or "").strip()
+            price = offer.get("price_value")
+            if not key or not price or price <= 0:
+                rejected += 1
+                continue
+            title = offer.get("title") or ""
+            if not title:
+                rejected += 1
+                continue
+
+            if identity is not None:
+                sku, strong = identity(offer)
+            else:
+                sku = compute_sku(offer)
+                strong = compute_strong(offer)
+
+            product_id = match_offer_to_product(sku, strong, doc["products"])
+            if product_id is None:
+                product_id = self._new_product_id(doc)
+                doc["products"][product_id] = {
+                    "id": product_id,
+                    "title": title,
+                    "category": offer.get("category"),
+                    "description": offer.get("description"),
+                    "brand": offer.get("brand"),
+                    "sku": serialize_sku(sku),
+                    "strong": serialize_strong(strong),
+                    "eans": [],
+                    "query_keys": [query_key] if query_key else [],
+                    "first_seen_at": now,
+                    "updated_at": now,
+                }
+            else:
+                product = doc["products"][product_id]
+                if query_key and query_key not in product["query_keys"]:
+                    product["query_keys"].append(query_key)
+                product["updated_at"] = now
+
+            oid = build_offer_id(offer, strong)
+            existing = doc["offers"].get(oid)
+            if existing is None:
+                doc["offers"][oid] = {
+                    "id": oid,
+                    "product_id": product_id,
+                    "marketplace": offer.get("platform") or "",
+                    "listing_id": _listing_id(strong),
+                    "url": offer.get("url") or "",
+                    "title": title,
+                    "product_key": offer.get("product_key") or "",
+                    "price_value": offer.get("price_value"),
+                    "price_display": offer.get("price_display") or "",
+                    "image": offer.get("image") or "",
+                    "original_price": offer.get("original_price"),
+                    "availability": offer.get("availability"),
+                    "feed_provenance": feed_provenance,
+                    "strong": serialize_strong(strong),
+                    "sku": serialize_sku(sku),
+                    "data": copy.deepcopy(offer),
+                    "first_seen_at": now,
+                    "updated_at": now,
+                }
+                self._record_snapshot(doc, oid, offer.get("price_value"), now)
+            else:
+                self._maybe_snapshot_price(
+                    doc, existing, offer.get("price_value"), now
+                )
+                existing.update(
+                    product_id=product_id,
+                    marketplace=offer.get("platform") or existing.get("marketplace"),
+                    url=offer.get("url") or existing.get("url"),
+                    title=title,
+                    product_key=offer.get("product_key") or existing.get("product_key"),
+                    price_value=offer.get("price_value"),
+                    price_display=offer.get("price_display") or "",
+                    image=offer.get("image") or "",
+                    updated_at=now,
+                )
+                # Preserve feed-specific extras; only a genuinely present new
+                # value overwrites a stored one.
+                if offer.get("original_price") is not None:
+                    existing["original_price"] = offer["original_price"]
+                if offer.get("availability") is not None:
+                    existing["availability"] = offer["availability"]
+                if feed_provenance is not None:
+                    existing["feed_provenance"] = feed_provenance
+                existing["data"] = copy.deepcopy(offer)
+
+            seen_products.append(product_id)
+            seen_offers.append(oid)
+
+        return seen_products, seen_offers, rejected
 
     # -- price history --------------------------------------------------------
 
